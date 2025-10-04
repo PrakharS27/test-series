@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, Users, BarChart3, Plus, Edit, Trash2, Play, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, FileText, User, Building, Phone, GraduationCap, Camera, Download, Mail, Lock } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Plus, Edit, Trash2, Play, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, FileText, User, Building, Phone, GraduationCap, Camera, Download, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_BASE = '/api';
