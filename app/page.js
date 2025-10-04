@@ -185,6 +185,7 @@ export default function TestSeriesApp() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
+      console.log('Loaded test series:', data.length, 'tests for user:', user?.username);
       setTestSeries(data);
     } catch (error) {
       console.error('Error loading test series:', error);
