@@ -1,7 +1,0 @@
-// Setup script to create default admin user
-const { MongoClient } = require('mongodb');
-const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
-
-const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017';
-const DB_NAME = process.env.DB_NAME || 'test_series_db';\n\nasync function setupAdmin() {\n  const client = new MongoClient(MONGO_URL);\n  \n  try {\n    await client.connect();\n    const db = client.db(DB_NAME);\n    \n    // Check if admin already exists\n    const existingAdmin = await db.collection('users').findOne({ role: 'admin' });\n    \n    if (existingAdmin) {\n      console.log('Admin user already exists:', existingAdmin.username);\n      return;\n    }\n    \n    // Create default admin user\n    const hashedPassword = await bcrypt.hash('admin123', 12);\n    const adminUser = {\n      userId: uuidv4(),\n      username: 'admin',\n      password: hashedPassword,\n      name: 'System Administrator',\n      role: 'admin',\n      createdAt: new Date(),\n      updatedAt: new Date()\n    };\n    \n    await db.collection('users').insertOne(adminUser);\n    \n    console.log('Default admin user created:');\n    console.log('Username: admin');\n    console.log('Password: admin123');\n    console.log('Role: admin');\n    \n  } catch (error) {\n    console.error('Error setting up admin:', error);\n  } finally {\n    await client.close();\n  }\n}\n\nsetupAdmin();\n
