@@ -536,7 +536,7 @@ async function handler(request) {
           category,
           duration: parseInt(duration),
           questions: questions || [],
-          status: 'draft', // New test series start as draft
+          status: 'published', // New test series are published by default so teachers can see them immediately
           createdBy: user.userId,
           createdAt: new Date(),
           updatedAt: new Date()
