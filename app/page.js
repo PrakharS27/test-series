@@ -1366,10 +1366,28 @@ export default function TestSeriesApp() {
     const [showCSVDialog, setShowCSVDialog] = useState(false);
     const [selectedTestForCSV, setSelectedTestForCSV] = useState('');
 
+    // Filter tests based on active category and selected teacher
+    const filteredTests = testSeries.filter(test => {
+      if (user?.role === 'student') {
+        if (activeCategory !== 'all' && test.category !== activeCategory) return false;
+        if (selectedTeacher && test.createdBy !== selectedTeacher) return false;
+      }
+      return true;
+    });
+
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Test Series</h2>
+          <div>
+            <h2 className="text-2xl font-bold">Test Series</h2>
+            {user?.role === 'student' && activeCategory !== 'all' && (
+              <p className="text-sm text-gray-600">
+                Showing tests for {activeCategory}
+                {selectedTeacher && categoryTeachers.find(t => t.userId === selectedTeacher) && 
+                  ` by ${categoryTeachers.find(t => t.userId === selectedTeacher).name}`}
+              </p>
+            )}
+          </div>
           {(user?.role === 'teacher' || user?.role === 'admin') && (
             <div className="flex space-x-2">
               <Button onClick={() => setShowCSVDialog(true)}>
@@ -1383,66 +1401,106 @@ export default function TestSeriesApp() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {testSeries.map((test) => (
+          {filteredTests.map((test) => (
             <Card key={test.testSeriesId} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{test.title}</CardTitle>
-                    <CardDescription className="mt-1">{test.description}</CardDescription>
+              {/* Udemy-style header with teacher info */}
+              <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                    {test.createdByPhoto ? (
+                      <img src={test.createdByPhoto} alt={test.createdByName} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="h-6 w-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">{test.createdByName}</h3>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <div className="flex text-yellow-400">
+                        {[...Array(5)].map((_, i) => (
+                          <span key={i} className={i < (test.createdByRating || 4) ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+                        ))}
+                      </div>
+                      <span className="text-gray-600">({test.totalAttempts || 0} students)</span>
+                    </div>
                   </div>
                   {(user?.role === 'teacher' || user?.role === 'admin') && test.createdBy === user?.userId && (
                     <div className="flex space-x-1">
+                      <Button size="sm" variant="ghost" onClick={() => previewTestSeries(test.testSeriesId)}>
+                        <Play className="h-4 w-4 text-blue-500" />
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        <Edit className="h-4 w-4 text-gray-500" />
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={() => deleteTestSeries(test.testSeriesId)}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <span>Category:</span>
-                    <Badge variant="outline">{test.category}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Duration:</span>
-                    <span>{test.duration} minutes</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Questions:</span>
-                    <span>{test.questions.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Created by:</span>
-                    <span>{test.createdByName}</span>
+              </div>
+
+              <CardHeader>
+                <div className="space-y-2">
+                  <CardTitle className="text-lg line-clamp-2">{test.title}</CardTitle>
+                  <CardDescription className="line-clamp-2">{test.description}</CardDescription>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary">{test.category}</Badge>
+                    {test.averagePercentage > 0 && (
+                      <Badge variant="outline" className="text-green-600">
+                        {Math.round(test.averagePercentage)}% avg score
+                      </Badge>
+                    )}
                   </div>
                 </div>
-                {user?.role === 'student' && (
-                  <Button 
-                    className="w-full mt-4" 
-                    onClick={() => startTest(test.testSeriesId)}
-                    disabled={attempts.some(a => a.testSeriesId === test.testSeriesId && a.status === 'completed')}
-                  >
-                    {attempts.some(a => a.testSeriesId === test.testSeriesId && a.status === 'completed') ? (
-                      <>
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Completed
-                      </>
-                    ) : attempts.some(a => a.testSeriesId === test.testSeriesId && a.status === 'in_progress') ? (
-                      <>
-                        <Play className="mr-2 h-4 w-4" />
-                        Resume Test
-                      </>
-                    ) : (
-                      <>
-                        <Play className="mr-2 h-4 w-4" />
-                        Start Test
-                      </>
-                    )}
-                  </Button>
-                )}
+              </CardHeader>
+              
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-4 w-4" />
+                      <span>{test.duration} min</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <BookOpen className="h-4 w-4" />
+                      <span>{test.questions?.length || 0} questions</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Users className="h-4 w-4" />
+                      <span>{test.totalAttempts || 0} attempts</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <BarChart3 className="h-4 w-4" />
+                      <span>{test.averagePercentage ? `${Math.round(test.averagePercentage)}% avg` : 'New'}</span>
+                    </div>
+                  </div>
+                  
+                  {user?.role === 'student' && (
+                    <Button 
+                      className="w-full mt-4" 
+                      onClick={() => startTest(test.testSeriesId)}
+                      disabled={attempts.some(a => a.testSeriesId === test.testSeriesId && a.status === 'completed')}
+                    >
+                      {attempts.some(a => a.testSeriesId === test.testSeriesId && a.status === 'completed') ? (
+                        <>
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Completed
+                        </>
+                      ) : attempts.some(a => a.testSeriesId === test.testSeriesId && a.status === 'in_progress') ? (
+                        <>
+                          <Play className="mr-2 h-4 w-4" />
+                          Resume Test
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-2 h-4 w-4" />
+                          Start Test
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
