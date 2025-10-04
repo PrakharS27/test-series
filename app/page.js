@@ -1545,6 +1545,48 @@ export default function TestSeriesApp() {
                       )}
                     </Button>
                   )}
+
+                  {/* Teacher/Admin Action Buttons */}
+                  {(user?.role === 'teacher' || user?.role === 'admin') && (
+                    <div className="grid grid-cols-3 gap-2 mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => previewTestSeries(test.testSeriesId)}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Eye className="mr-1 h-3 w-3" />
+                        Preview
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => toggleTestStatus(test.testSeriesId, test.status)}
+                        className={test.status === 'published' ? 'text-orange-600 hover:text-orange-700' : 'text-green-600 hover:text-green-700'}
+                      >
+                        {test.status === 'published' ? (
+                          <>
+                            <EyeOff className="mr-1 h-3 w-3" />
+                            Unpublish
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="mr-1 h-3 w-3" />
+                            Publish
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => deleteTestSeries(test.testSeriesId)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 className="mr-1 h-3 w-3" />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
