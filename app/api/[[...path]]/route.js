@@ -416,7 +416,10 @@ async function handler(request, { params }) {
     }
 
     // Users endpoint (admin only)
-    if (path[0] === 'users' && user.role === 'admin') {
+    if (path[0] === 'users') {
+      if (user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+      }
       if (method === 'GET') {
         const users = await db.collection('users')
           .find({}, { projection: { password: 0, _id: 0 } })
