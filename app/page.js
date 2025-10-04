@@ -536,101 +536,23 @@ export default function TestSeriesApp() {
     );
   }
 
-  // Enhanced Authentication UI
-  if (!isAuthenticated || authStep === 'category-select' || authStep === 'teacher-select') {
+  // Authentication UI (Simplified - no category/teacher selection for students)
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-gray-900">
-              {authStep === 'category-select' && 'Select Category'}
-              {authStep === 'teacher-select' && 'Select Teacher'}
               {authStep === 'login' && 'Test Series Platform'}
               {authStep === 'register' && 'Create Account'}
               {authStep === 'forgot-password' && 'Reset Password'}
             </CardTitle>
             <CardDescription>
-              {authStep === 'category-select' && 'Choose your study category'}
-              {authStep === 'teacher-select' && 'Choose your preferred teacher'}
               {(authStep === 'login' || authStep === 'register') && 'Access your personalized learning dashboard'}
               {authStep === 'forgot-password' && 'Enter your email to reset password'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Category Selection */}
-            {authStep === 'category-select' && (
-              <div className="space-y-4">
-                <div>
-                  <Label>Select Category</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map(category => (
-                        <SelectItem key={category.categoryId} value={category.categoryId}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button 
-                  className="w-full" 
-                  onClick={() => {
-                    if (selectedCategory) {
-                      loadTeachers(selectedCategory);
-                      setAuthStep('teacher-select');
-                    }
-                  }}
-                  disabled={!selectedCategory}
-                >
-                  Next <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            )}
-
-            {/* Teacher Selection */}
-            {authStep === 'teacher-select' && (
-              <div className="space-y-4">
-                <div>
-                  <Label>Select Teacher</Label>
-                  <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a teacher" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teachers.map(teacher => (
-                        <SelectItem key={teacher.userId} value={teacher.userId}>
-                          {teacher.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setAuthStep('category-select')}
-                    className="flex-1"
-                  >
-                    <ChevronLeft className="mr-2 h-4 w-4" /> Back
-                  </Button>
-                  <Button 
-                    className="flex-1" 
-                    onClick={() => {
-                      if (selectedCategory && selectedTeacher) {
-                        updateStudentPreferences(selectedCategory, selectedTeacher);
-                      }
-                    }}
-                    disabled={!selectedTeacher}
-                  >
-                    Complete Setup
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {/* Login Form */}
             {authStep === 'login' && <LoginForm />}
 
