@@ -452,6 +452,10 @@ async function handler(request, { params }) {
 
     // Analytics endpoint
     if (path[0] === 'analytics') {
+      if (user.role === 'student') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+      }
+      
       if (user.role === 'teacher') {
         // Get analytics for teacher's test series
         const teacherTestSeries = await db.collection('testSeries')
