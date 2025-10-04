@@ -411,11 +411,11 @@ async function handler(request) {
 
       if (method === 'GET') {
         let query = {};
-        const { category, teacher } = Object.fromEntries(url.searchParams);
+        const { category, teacher, includeUnpublished } = Object.fromEntries(url.searchParams);
         
         if (user?.role === 'student') {
-          // Students see test series from their selected teacher
-          // If they haven't selected preferences yet, show all tests
+          // Students see only published test series from their selected teacher
+          query.status = { $ne: 'draft' }; // Only published tests
           if (user.selectedTeacher) {
             query.createdBy = user.selectedTeacher;
           }
@@ -424,6 +424,10 @@ async function handler(request) {
           if (teacher) query.createdBy = teacher;
         } else if (user?.role === 'teacher') {
           query.createdBy = user.userId;
+          // Teachers can see their drafts unless specified otherwise
+          if (includeUnpublished !== 'true') {
+            query.status = { $ne: 'draft' };
+          }
         }
         // Admin sees all
 
