@@ -414,13 +414,12 @@ async function handler(request) {
         const { category, teacher } = Object.fromEntries(url.searchParams);
         
         if (user?.role === 'student') {
-          // Students see only test series from their selected teacher and category
-          if (user.selectedCategory) {
-            query.category = user.selectedCategory;
-          }
+          // Students see test series from their selected teacher
+          // If they haven't selected preferences yet, show all tests
           if (user.selectedTeacher) {
             query.createdBy = user.selectedTeacher;
           }
+          // Allow filtering by URL parameters too
           if (category) query.category = category;
           if (teacher) query.createdBy = teacher;
         } else if (user?.role === 'teacher') {
