@@ -159,6 +159,10 @@ async function handler(request, { params }) {
         return NextResponse.json(testSeries, { headers: corsHeaders });
       }
 
+      if (method === 'POST' && user.role === 'student') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+      }
+
       if (method === 'POST' && (user.role === 'admin' || user.role === 'teacher')) {
         const { title, description, category, duration, questions } = await request.json();
         
