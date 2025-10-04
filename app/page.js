@@ -1119,8 +1119,8 @@ export default function TestSeriesApp() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm">
-                    <div>Category: <span className="font-medium">{categories.find(c => c.categoryId === user.selectedCategory)?.name}</span></div>
-                    <div>Teacher: <span className="font-medium">{teachers.find(t => t.userId === user.selectedTeacher)?.name}</span></div>
+                    <div>Category: <span className="font-medium">{categories.find(c => c.categoryId === user.selectedCategory)?.name || 'Selected'}</span></div>
+                    <div>Teacher: <span className="font-medium">{teachers.find(t => t.userId === user.selectedTeacher)?.name || 'Selected'}</span></div>
                   </div>
                 </CardContent>
               </Card>
