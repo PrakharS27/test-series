@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime, timedelta
 
 # Configuration
-BASE_URL = "https://quizmentor.preview.emergentagent.com/api"
+BASE_URL = "https://testmate-portal.preview.emergentagent.com/api"
 ADMIN_CREDENTIALS = {"username": "admin", "password": "admin123"}
 NEW_ADMIN_CREDENTIALS = {"username": "prakharshivam0@gmail.com", "password": "Admin!@Super@19892005"}
 
