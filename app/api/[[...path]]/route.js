@@ -460,6 +460,7 @@ async function handler(request) {
           category,
           duration: parseInt(duration),
           questions: questions || [],
+          status: 'draft', // New test series start as draft
           createdBy: user.userId,
           createdAt: new Date(),
           updatedAt: new Date()
