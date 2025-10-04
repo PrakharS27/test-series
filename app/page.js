@@ -1003,7 +1003,7 @@ export default function TestSeriesApp() {
                         <CardContent className="p-6">
                           <div className="flex justify-between items-center">
                             <div>
-                              <h3 className="font-semibold">{testSeries?.title || 'Unknown Test'}</h3>
+                              <h3 className="font-semibold">{testSeriesItem?.title || 'Unknown Test'}</h3>
                               <p className="text-gray-600">Student: {attempt.studentName}</p>
                               <p className="text-sm text-gray-500">
                                 Completed: {new Date(attempt.completedAt).toLocaleDateString()}
