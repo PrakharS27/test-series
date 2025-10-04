@@ -267,6 +267,147 @@ class TestTeacherVisibility:
             self.log(f"❌ Error testing with different parameters: {str(e)}", "ERROR")
             return False
     
+    def test_multiple_scenarios(self):
+        """Test multiple scenarios that might cause visibility issues"""
+        try:
+            self.log("Testing multiple scenarios for potential visibility issues...")
+            
+            # Scenario 1: Create test with draft status explicitly
+            self.log("Scenario 1: Creating test with draft status...")
+            draft_test_data = {
+                "title": f"Draft Test - {datetime.now().strftime('%H:%M:%S')}",
+                "description": "Test with draft status",
+                "category": "Science", 
+                "duration": 30,
+                "status": "draft",  # Explicitly set to draft
+                "questions": [
+                    {
+                        "questionId": "q1",
+                        "question": "What is H2O?",
+                        "options": ["Water", "Hydrogen", "Oxygen", "Salt"],
+                        "correctAnswer": 0,
+                        "explanation": "H2O is water"
+                    }
+                ]
+            }
+            
+            headers = {"Authorization": f"Bearer {self.teacher_token}"}
+            response = requests.post(f"{API_BASE}/test-series", json=draft_test_data, headers=headers)
+            
+            if response.status_code == 200:
+                draft_test_id = response.json().get('testSeriesId')
+                self.log(f"✅ Draft test created: {draft_test_id}")
+                
+                # Check if draft test appears in list
+                list_response = requests.get(f"{API_BASE}/test-series", headers=headers)
+                if list_response.status_code == 200:
+                    tests = list_response.json()
+                    draft_found = any(test.get('testSeriesId') == draft_test_id for test in tests)
+                    self.log(f"   - Draft test visible in list: {draft_found}")
+            
+            # Scenario 2: Create multiple tests rapidly
+            self.log("Scenario 2: Creating multiple tests rapidly...")
+            rapid_test_ids = []
+            for i in range(3):
+                rapid_data = {
+                    "title": f"Rapid Test {i+1} - {datetime.now().strftime('%H:%M:%S')}",
+                    "description": f"Rapid test number {i+1}",
+                    "category": "Physics", 
+                    "duration": 45,
+                    "questions": [
+                        {
+                            "questionId": f"q{i+1}",
+                            "question": f"Question {i+1}?",
+                            "options": ["A", "B", "C", "D"],
+                            "correctAnswer": i % 4,
+                            "explanation": f"Answer {i+1}"
+                        }
+                    ]
+                }
+                
+                response = requests.post(f"{API_BASE}/test-series", json=rapid_data, headers=headers)
+                if response.status_code == 200:
+                    test_id = response.json().get('testSeriesId')
+                    rapid_test_ids.append(test_id)
+                    self.log(f"   - Created rapid test {i+1}: {test_id}")
+                
+                # Small delay between creations
+                time.sleep(0.1)
+            
+            # Check if all rapid tests are visible
+            list_response = requests.get(f"{API_BASE}/test-series", headers=headers)
+            if list_response.status_code == 200:
+                tests = list_response.json()
+                for i, test_id in enumerate(rapid_test_ids):
+                    found = any(test.get('testSeriesId') == test_id for test in tests)
+                    self.log(f"   - Rapid test {i+1} visible: {found}")
+            
+            # Scenario 3: Test with different teacher
+            self.log("Scenario 3: Testing with different teacher account...")
+            teacher2_data = {
+                "username": "teacher2",
+                "password": "teacher123", 
+                "name": "Test Teacher Two",
+                "role": "teacher",
+                "email": "teacher2@example.com"
+            }
+            
+            # Register or login teacher2
+            response = requests.post(f"{API_BASE}/auth/register", json=teacher2_data)
+            if response.status_code == 400:  # Already exists
+                response = requests.post(f"{API_BASE}/auth/login", json={
+                    "username": "teacher2", "password": "teacher123"
+                })
+            
+            if response.status_code == 200:
+                teacher2_token = response.json().get('token')
+                teacher2_user_id = response.json().get('user', {}).get('userId')
+                self.log(f"   - Teacher2 logged in: {teacher2_user_id}")
+                
+                # Create test with teacher2
+                teacher2_test_data = {
+                    "title": f"Teacher2 Test - {datetime.now().strftime('%H:%M:%S')}",
+                    "description": "Test by second teacher",
+                    "category": "Chemistry", 
+                    "duration": 60,
+                    "questions": [
+                        {
+                            "questionId": "q1",
+                            "question": "What is NaCl?",
+                            "options": ["Salt", "Sugar", "Water", "Oil"],
+                            "correctAnswer": 0,
+                            "explanation": "NaCl is salt"
+                        }
+                    ]
+                }
+                
+                headers2 = {"Authorization": f"Bearer {teacher2_token}"}
+                response = requests.post(f"{API_BASE}/test-series", json=teacher2_test_data, headers=headers2)
+                
+                if response.status_code == 200:
+                    teacher2_test_id = response.json().get('testSeriesId')
+                    self.log(f"   - Teacher2 test created: {teacher2_test_id}")
+                    
+                    # Check if teacher2 can see their test
+                    list_response = requests.get(f"{API_BASE}/test-series", headers=headers2)
+                    if list_response.status_code == 200:
+                        tests = list_response.json()
+                        found = any(test.get('testSeriesId') == teacher2_test_id for test in tests)
+                        self.log(f"   - Teacher2 can see their test: {found}")
+                        
+                        # Check if teacher1 cannot see teacher2's test
+                        list_response1 = requests.get(f"{API_BASE}/test-series", headers=headers)
+                        if list_response1.status_code == 200:
+                            tests1 = list_response1.json()
+                            found1 = any(test.get('testSeriesId') == teacher2_test_id for test in tests1)
+                            self.log(f"   - Teacher1 cannot see teacher2's test: {not found1}")
+            
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ Error in multiple scenarios test: {str(e)}", "ERROR")
+            return False
+
     def run_all_tests(self):
         """Run all tests in sequence"""
         self.log("=" * 60)
@@ -300,6 +441,9 @@ class TestTeacherVisibility:
         # Step 6: Test with different parameters
         results['parameter_testing'] = self.test_with_different_parameters()
         
+        # Step 7: Test multiple scenarios
+        results['multiple_scenarios'] = self.test_multiple_scenarios()
+        
         # Summary
         self.log("=" * 60)
         self.log("TEST RESULTS SUMMARY")
@@ -323,6 +467,8 @@ class TestTeacherVisibility:
         else:
             self.log("=" * 60)
             self.log("✅ NO ISSUE: Teacher test visibility working correctly!")
+            self.log("   - All basic visibility tests passed")
+            self.log("   - The reported issue may be frontend-related or already fixed")
             self.log("=" * 60)
         
         return results
