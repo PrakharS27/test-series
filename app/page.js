@@ -40,8 +40,15 @@ export default function TestSeriesApp() {
   // New state for enhanced features
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState('');
-  const [authStep, setAuthStep] = useState('login'); // login, register, category-select, teacher-select
+  const [authStep, setAuthStep] = useState('login'); // login, register, forgot-password
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('all'); // for category navigation
+  const [showTeachersList, setShowTeachersList] = useState(false);
+  const [categoryTeachers, setCategoryTeachers] = useState([]);
+  const [showDetailedResults, setShowDetailedResults] = useState(false);
+  const [detailedResults, setDetailedResults] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewTest, setPreviewTest] = useState(null);
 
   // Authentication functions
   const login = async (credentials) => {
