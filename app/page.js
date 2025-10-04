@@ -1447,6 +1447,11 @@ export default function TestSeriesApp() {
                   <CardDescription className="line-clamp-2">{test.description}</CardDescription>
                   <div className="flex items-center space-x-2">
                     <Badge variant="secondary">{test.category}</Badge>
+                    {(user?.role === 'teacher' || user?.role === 'admin') && (
+                      <Badge variant={test.status === 'draft' ? 'destructive' : 'default'}>
+                        {test.status === 'draft' ? 'Draft' : 'Published'}
+                      </Badge>
+                    )}
                     {test.averagePercentage > 0 && (
                       <Badge variant="outline" className="text-green-600">
                         {Math.round(test.averagePercentage)}% avg score
