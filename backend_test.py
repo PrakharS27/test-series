@@ -25,10 +25,11 @@ class TestTeacherVisibility:
         print(f"[{timestamp}] {status}: {message}")
         
     def test_teacher_registration(self):
-        """Test teacher account creation"""
+        """Test teacher account creation with exact credentials from user request"""
         try:
-            self.log("Testing teacher registration...")
+            self.log("Testing teacher registration with exact credentials from user request...")
             
+            # First try the exact credentials mentioned in the user request
             teacher_data = {
                 "username": "teacher1",
                 "password": "teacher123", 
