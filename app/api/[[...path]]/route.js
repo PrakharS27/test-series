@@ -478,8 +478,9 @@ async function handler(request) {
             query.createdBy = user.userId;
           } else {
             query.createdBy = user.userId;
-            // Teachers can see their drafts unless specified otherwise
-            if (includeUnpublished !== 'true') {
+            // Teachers can see their drafts by default - they need to see their own work
+            // Only hide drafts if explicitly specified to show only published
+            if (includeUnpublished === 'false') {
               query.status = { $ne: 'draft' };
             }
           }
