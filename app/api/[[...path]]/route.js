@@ -542,6 +542,8 @@ async function handler(request) {
           updatedAt: new Date()
         };
 
+        console.log('Creating test series with status:', testSeries.status, 'for user:', user.userId);
+
         await db.collection('testSeries').insertOne(testSeries);
         return NextResponse.json(testSeries, { headers: corsHeaders });
       }
