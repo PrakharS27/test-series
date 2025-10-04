@@ -821,6 +821,118 @@ export default function TestSeriesApp() {
     );
   }
 
+  // Teachers List View
+  if (showTeachersList && user?.role === 'student') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold">Teachers for {activeCategory}</h1>
+              <p className="text-sm text-gray-600">Choose a teacher to view their test series</p>
+            </div>
+            <Button variant="outline" onClick={() => setShowTeachersList(false)}>
+              <ChevronLeft className="mr-2 h-4 w-4" /> Back to Tests
+            </Button>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categoryTeachers.map((teacher) => (
+              <Card key={teacher.userId} className="hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => {
+                      setSelectedTeacher(teacher.userId);
+                      setShowTeachersList(false);
+                      loadTestSeries();
+                    }}>
+                <CardHeader className="text-center">
+                  <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                    {teacher.photo ? (
+                      <img src={teacher.photo} alt={teacher.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="h-10 w-10 text-gray-400" />
+                    )}
+                  </div>
+                  <CardTitle className="text-lg">{teacher.name}</CardTitle>
+                  <CardDescription>{teacher.experience || 'Experienced Teacher'}</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <div className="flex items-center justify-center space-x-2 mb-2">
+                    <div className="flex text-yellow-400">
+                      {[...Array(5)].map((_, i) => (
+                        <span key={i} className={i < (teacher.rating || 4) ? 'text-yellow-400' : 'text-gray-300'}>★</span>
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-600">{teacher.rating || 4.0}</span>
+                  </div>
+                  <Button className="w-full">View Tests</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Test Preview for Teachers
+  if (showPreview && previewTest) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold">{previewTest.title} - Preview</h1>
+              <p className="text-sm text-gray-600">
+                {previewTest.questions?.length || 0} questions • {previewTest.duration} minutes
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setShowPreview(false)}>
+              <X className="mr-2 h-4 w-4" /> Close Preview
+            </Button>
+          </div>
+        </div>
+
+        <div className="max-w-4xl mx-auto p-6 space-y-6">
+          {previewTest.questions?.map((question, index) => (
+            <Card key={question.questionId}>
+              <CardHeader>
+                <CardTitle>Question {index + 1}</CardTitle>
+                <CardDescription>{question.question}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {question.options.map((option, optionIndex) => (
+                    <div 
+                      key={optionIndex} 
+                      className={`p-2 rounded border ${
+                        optionIndex === question.correctAnswer 
+                          ? 'bg-green-50 border-green-200' 
+                          : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <span>{option}</span>
+                      {optionIndex === question.correctAnswer && (
+                        <Badge variant="default" className="ml-2 bg-green-600">Correct</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {question.explanation && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <h4 className="font-medium text-blue-900 mb-1">Explanation:</h4>
+                    <p className="text-blue-800 text-sm">{question.explanation}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Main Dashboard
   return (
     <div className="min-h-screen bg-gray-50">
@@ -839,6 +951,40 @@ export default function TestSeriesApp() {
             Logout
           </Button>
         </div>
+        
+        {/* Category Navigation for Students */}
+        {user?.role === 'student' && (
+          <div className="border-t bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 py-3">
+              <div className="flex space-x-4 overflow-x-auto">
+                <Button
+                  variant={activeCategory === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setActiveCategory('all');
+                    setSelectedTeacher('');
+                    loadTestSeries();
+                  }}
+                >
+                  All Categories
+                </Button>
+                {categories.map((category) => (
+                  <Button
+                    key={category.categoryId}
+                    variant={activeCategory === category.name ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setActiveCategory(category.name);
+                      loadTeachersByCategory(category.name);
+                    }}
+                  >
+                    {category.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
