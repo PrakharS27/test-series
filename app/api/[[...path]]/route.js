@@ -8,6 +8,15 @@ const client = new MongoClient(process.env.MONGO_URL);
 const dbName = process.env.DB_NAME || 'test_series_db';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// Temporary email domains to block
+const TEMP_EMAIL_DOMAINS = [
+  '10minutemail.com', 'guerrillamail.com', 'mailinator.com', 'tempmail.org',
+  'throwaway.email', '0-mail.com', '10mail.org', '20minutemail.com',
+  'burnermail.io', 'emailondeck.com', 'fakeinbox.com', 'guerrillamailblock.com',
+  'harakirimail.com', 'mailnesia.com', 'sharklasers.com', 'spamgourmet.com',
+  'temp-mail.org', 'tempinbox.com', 'trashmail.com', 'yopmail.com'
+];
+
 // Database connection
 async function connectDB() {
   try {
@@ -38,6 +47,57 @@ function getUserFromRequest(request) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return null;
   return verifyToken(token);
+}
+
+// Email validation function
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// Check if email is from temporary email service
+function isTempEmail(email) {
+  const domain = email.split('@')[1]?.toLowerCase();
+  return TEMP_EMAIL_DOMAINS.includes(domain);
+}
+
+// Parse CSV/text file for bulk question import
+function parseQuestionFile(content, format = 'csv') {
+  if (format === 'csv') {
+    const lines = content.split('\n').filter(line => line.trim());
+    const questions = [];
+    
+    for (let i = 1; i < lines.length; i++) { // Skip header
+      const cols = lines[i].split(',').map(col => col.trim().replace(/^"|"$/g, ''));
+      if (cols.length >= 6) {
+        questions.push({
+          question: cols[0],
+          options: [cols[1], cols[2], cols[3], cols[4]],
+          correctAnswer: cols[5]
+        });
+      }
+    }
+    return questions;
+  }
+  
+  if (format === 'text') {
+    const sections = content.split('\n\n').filter(section => section.trim());
+    const questions = [];
+    
+    sections.forEach(section => {
+      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
+      if (lines.length >= 6) {
+        questions.push({
+          question: lines[0],
+          options: [lines[1], lines[2], lines[3], lines[4]],
+          correctAnswer: lines[5]
+        });
+      }
+    });
+    return questions;
+  }
+  
+  return [];
 }
 
 async function handler(request, { params }) {
@@ -90,6 +150,16 @@ async function handler(request, { params }) {
       if (path[1] === 'register' && method === 'POST') {
         const { username, password, name, role } = await request.json();
         
+        // Validate email format
+        if (!isValidEmail(username)) {
+          return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400, headers: corsHeaders });
+        }
+        
+        // Check for temporary email
+        if (isTempEmail(username)) {
+          return NextResponse.json({ error: 'Temporary email addresses are not allowed. Please use a permanent email address.' }, { status: 400, headers: corsHeaders });
+        }
+        
         // Only allow student and teacher registration
         if (!['student', 'teacher'].includes(role)) {
           return NextResponse.json({ error: 'Invalid role' }, { status: 400, headers: corsHeaders });
@@ -98,20 +168,28 @@ async function handler(request, { params }) {
         // Check if user already exists
         const existingUser = await db.collection('users').findOne({ username });
         if (existingUser) {
-          return NextResponse.json({ error: 'Username already exists' }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: 'Email already exists' }, { status: 400, headers: corsHeaders });
         }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
         const userId = uuidv4();
 
-        // Create user
+        // Create user with profile data
         const user = {
           userId,
           username,
           password: hashedPassword,
           name,
           role,
+          profile: {
+            bio: '',
+            phone: '',
+            institution: '',
+            experience: '',
+            subjects: [],
+            profileImage: ''
+          },
           createdAt: new Date(),
           updatedAt: new Date()
         };
@@ -140,6 +218,72 @@ async function handler(request, { params }) {
     const user = getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+    }
+
+    // Profile management endpoints
+    if (path[0] === 'profile') {
+      if (method === 'GET') {
+        // Get current user's profile
+        const userData = await db.collection('users').findOne(
+          { userId: user.userId },
+          { projection: { password: 0, _id: 0 } }
+        );
+        
+        return NextResponse.json(userData, { headers: corsHeaders });
+      }
+
+      if (method === 'PUT') {
+        // Update user profile
+        const updateData = await request.json();
+        
+        // Remove sensitive fields from update
+        const { password, role, userId, username, ...profileUpdate } = updateData;
+        
+        await db.collection('users').updateOne(
+          { userId: user.userId },
+          { 
+            $set: { 
+              ...profileUpdate,
+              updatedAt: new Date() 
+            } 
+          }
+        );
+        
+        return NextResponse.json({ message: 'Profile updated successfully' }, { headers: corsHeaders });
+      }
+    }
+
+    // Bulk question import endpoint
+    if (path[0] === 'import-questions' && method === 'POST') {
+      if (user.role !== 'teacher' && user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+      }
+
+      const { content, format } = await request.json();
+      
+      if (!content) {
+        return NextResponse.json({ error: 'No content provided' }, { status: 400, headers: corsHeaders });
+      }
+
+      try {
+        const questions = parseQuestionFile(content, format);
+        
+        if (questions.length === 0) {
+          return NextResponse.json({ error: 'No valid questions found in the file' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Add questionIds to questions
+        const questionsWithIds = questions.map(q => ({ ...q, questionId: uuidv4() }));
+        
+        return NextResponse.json({ 
+          questions: questionsWithIds,
+          count: questionsWithIds.length,
+          message: `Successfully parsed ${questionsWithIds.length} questions`
+        }, { headers: corsHeaders });
+        
+      } catch (error) {
+        return NextResponse.json({ error: 'Failed to parse questions file' }, { status: 400, headers: corsHeaders });
+      }
     }
 
     // Test Series endpoints
@@ -173,7 +317,7 @@ async function handler(request, { params }) {
           description,
           category,
           duration, // in minutes
-          questions: questions.map(q => ({ ...q, questionId: uuidv4() })),
+          questions: questions.map(q => ({ ...q, questionId: q.questionId || uuidv4() })),
           createdBy: user.userId,
           createdByName: user.name,
           createdAt: new Date(),
@@ -433,9 +577,14 @@ async function handler(request, { params }) {
         // Create admin user
         const { username, password, name } = await request.json();
         
+        // Validate email format
+        if (!isValidEmail(username)) {
+          return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400, headers: corsHeaders });
+        }
+        
         const existingUser = await db.collection('users').findOne({ username });
         if (existingUser) {
-          return NextResponse.json({ error: 'Username already exists' }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: 'Email already exists' }, { status: 400, headers: corsHeaders });
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
@@ -447,6 +596,14 @@ async function handler(request, { params }) {
           password: hashedPassword,
           name,
           role: 'admin',
+          profile: {
+            bio: '',
+            phone: '',
+            institution: '',
+            experience: '',
+            subjects: [],
+            profileImage: ''
+          },
           createdAt: new Date(),
           updatedAt: new Date()
         };

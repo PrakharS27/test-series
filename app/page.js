@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Progress } from '@/components/ui/progress';
-import { BookOpen, Users, BarChart3, Plus, Edit, Trash2, Play, Clock, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, Users, BarChart3, Plus, Edit, Trash2, Play, Clock, CheckCircle, X, ChevronLeft, ChevronRight, Upload, FileText, User, Building, Phone, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_BASE = '/api';
@@ -33,6 +33,7 @@ export default function TestSeriesApp() {
   const [timeLeft, setTimeLeft] = useState(0);
   const [testCompleted, setTestCompleted] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [profile, setProfile] = useState(null);
 
   // Authentication functions
   const login = async (credentials) => {
@@ -93,6 +94,7 @@ export default function TestSeriesApp() {
     setCurrentTest(null);
     setCurrentAttempt(null);
     setTestCompleted(false);
+    setProfile(null);
     toast.success('Logged out successfully');
   };
 
@@ -134,6 +136,7 @@ export default function TestSeriesApp() {
     if (isAuthenticated && user) {
       loadTestSeries();
       loadAttempts();
+      loadProfile();
       if (user.role === 'admin') {
         loadUsers();
       }
@@ -205,6 +208,64 @@ export default function TestSeriesApp() {
       }
     } catch (error) {
       console.error('Error loading analytics:', error);
+    }
+  };
+
+  const loadProfile = async () => {
+    try {
+      const response = await apiCall('/profile');
+      if (response?.ok) {
+        const data = await response.json();
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  // Profile management functions
+  const updateProfile = async (profileData) => {
+    try {
+      const response = await apiCall('/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profileData)
+      });
+      
+      if (response?.ok) {
+        toast.success('Profile updated successfully!');
+        loadProfile();
+        return true;
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to update profile');
+        return false;
+      }
+    } catch (error) {
+      toast.error('Failed to update profile');
+      return false;
+    }
+  };
+
+  // Bulk question import function
+  const importQuestions = async (content, format = 'csv') => {
+    try {
+      const response = await apiCall('/import-questions', {
+        method: 'POST',
+        body: JSON.stringify({ content, format })
+      });
+      
+      if (response?.ok) {
+        const data = await response.json();
+        toast.success(data.message);
+        return data.questions;
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to import questions');
+        return null;
+      }
+    } catch (error) {
+      toast.error('Failed to import questions');
+      return null;
     }
   };
 
@@ -377,14 +438,20 @@ export default function TestSeriesApp() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">Email Address</Label>
                 <Input
                   id="username"
-                  type="text"
+                  type="email"
+                  placeholder="your@email.com"
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                   required
                 />
+                {!isLogin && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Temporary email addresses are not allowed
+                  </p>
+                )}
               </div>
               
               {!isLogin && (
@@ -393,6 +460,7 @@ export default function TestSeriesApp() {
                   <Input
                     id="name"
                     type="text"
+                    placeholder="Enter your full name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
@@ -405,6 +473,7 @@ export default function TestSeriesApp() {
                 <Input
                   id="password"
                   type="password"
+                  placeholder="Enter your password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
@@ -439,6 +508,164 @@ export default function TestSeriesApp() {
                 {isLogin ? 'Need an account? Register' : 'Have an account? Login'}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // Profile Component
+  const ProfileComponent = () => {
+    const [editMode, setEditMode] = useState(false);
+    const [profileData, setProfileData] = useState({
+      name: profile?.name || '',
+      profile: {
+        bio: profile?.profile?.bio || '',
+        phone: profile?.profile?.phone || '',
+        institution: profile?.profile?.institution || '',
+        experience: profile?.profile?.experience || '',
+        subjects: profile?.profile?.subjects || []
+      }
+    });
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      const success = await updateProfile(profileData);
+      if (success) {
+        setEditMode(false);
+      }
+    };
+
+    if (!profile) return <div>Loading profile...</div>;
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Profile Information</CardTitle>
+              <Button onClick={() => setEditMode(!editMode)}>
+                <Edit className="w-4 h-4 mr-2" />
+                {editMode ? 'Cancel' : 'Edit Profile'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {editMode ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    value={profileData.name}
+                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="bio">Bio</Label>
+                  <Textarea
+                    id="bio"
+                    value={profileData.profile.bio}
+                    onChange={(e) => setProfileData({ 
+                      ...profileData, 
+                      profile: { ...profileData.profile, bio: e.target.value } 
+                    })}
+                    placeholder="Tell us about yourself..."
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={profileData.profile.phone}
+                    onChange={(e) => setProfileData({ 
+                      ...profileData, 
+                      profile: { ...profileData.profile, phone: e.target.value } 
+                    })}
+                    placeholder="Your phone number"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="institution">Institution/Organization</Label>
+                  <Input
+                    id="institution"
+                    value={profileData.profile.institution}
+                    onChange={(e) => setProfileData({ 
+                      ...profileData, 
+                      profile: { ...profileData.profile, institution: e.target.value } 
+                    })}
+                    placeholder="Your school, college, or organization"
+                  />
+                </div>
+                
+                {user?.role === 'teacher' && (
+                  <div>
+                    <Label htmlFor="experience">Teaching Experience</Label>
+                    <Textarea
+                      id="experience"
+                      value={profileData.profile.experience}
+                      onChange={(e) => setProfileData({ 
+                        ...profileData, 
+                        profile: { ...profileData.profile, experience: e.target.value } 
+                      })}
+                      placeholder="Describe your teaching experience..."
+                    />
+                  </div>
+                )}
+                
+                <div className="flex space-x-2">
+                  <Button type="submit">Save Changes</Button>
+                  <Button type="button" variant="outline" onClick={() => setEditMode(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center">
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">{profile.name}</h3>
+                    <Badge variant={profile.role === 'admin' ? 'destructive' : profile.role === 'teacher' ? 'secondary' : 'default'}>
+                      {profile.role?.toUpperCase()}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Phone className="w-4 h-4 text-gray-600" />
+                    <span>{profile.profile?.phone || 'No phone number'}</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Building className="w-4 h-4 text-gray-600" />
+                    <span>{profile.profile?.institution || 'No institution'}</span>
+                  </div>
+                </div>
+                
+                {profile.profile?.bio && (
+                  <div>
+                    <Label>Bio</Label>
+                    <p className="text-gray-700 mt-1">{profile.profile.bio}</p>
+                  </div>
+                )}
+                
+                {user?.role === 'teacher' && profile.profile?.experience && (
+                  <div>
+                    <Label>Teaching Experience</Label>
+                    <p className="text-gray-700 mt-1">{profile.profile.experience}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -579,7 +806,7 @@ export default function TestSeriesApp() {
     );
   };
 
-  // Create Test Series Dialog
+  // Create Test Series Dialog with Bulk Import
   const CreateTestDialog = ({ onSuccess }) => {
     const [open, setOpen] = useState(false);
     const [formData, setFormData] = useState({
@@ -589,6 +816,24 @@ export default function TestSeriesApp() {
       duration: 60,
       questions: [{ question: '', options: ['', '', '', ''], correctAnswer: '' }]
     });
+    const [importContent, setImportContent] = useState('');
+    const [importFormat, setImportFormat] = useState('csv');
+    const [showImport, setShowImport] = useState(false);
+
+    const handleImport = async () => {
+      if (!importContent.trim()) {
+        toast.error('Please paste the question content');
+        return;
+      }
+
+      const questions = await importQuestions(importContent, importFormat);
+      if (questions && questions.length > 0) {
+        setFormData({ ...formData, questions });
+        setImportContent('');
+        setShowImport(false);
+        toast.success(`Imported ${questions.length} questions successfully!`);
+      }
+    };
 
     const addQuestion = () => {
       setFormData({
@@ -632,6 +877,7 @@ export default function TestSeriesApp() {
           duration: 60,
           questions: [{ question: '', options: ['', '', '', ''], correctAnswer: '' }]
         });
+        setShowImport(false);
         onSuccess();
       }
     };
@@ -644,11 +890,11 @@ export default function TestSeriesApp() {
             Create Test Series
           </Button>
         </DialogTrigger>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Test Series</DialogTitle>
             <DialogDescription>
-              Create a new test series with multiple choice questions
+              Create a new test series with multiple choice questions. You can add questions manually or import from file.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -698,15 +944,64 @@ export default function TestSeriesApp() {
             
             <div>
               <div className="flex justify-between items-center mb-4">
-                <Label className="text-lg font-semibold">Questions</Label>
-                <Button type="button" onClick={addQuestion} size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Question
-                </Button>
+                <Label className="text-lg font-semibold">Questions ({formData.questions.length})</Label>
+                <div className="flex space-x-2">
+                  <Button type="button" onClick={() => setShowImport(!showImport)} variant="outline">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Bulk Import
+                  </Button>
+                  <Button type="button" onClick={addQuestion} size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Question
+                  </Button>
+                </div>
               </div>
               
+              {showImport && (
+                <Card className="p-4 mb-4 bg-blue-50">
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Import Format</Label>
+                      <Select value={importFormat} onValueChange={setImportFormat}>
+                        <SelectTrigger className="w-48">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="csv">CSV Format</SelectItem>
+                          <SelectItem value="text">Text Format</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label>Question Data</Label>
+                      <Textarea
+                        value={importContent}
+                        onChange={(e) => setImportContent(e.target.value)}
+                        placeholder={importFormat === 'csv' ? 
+                          'Question,Option1,Option2,Option3,Option4,CorrectAnswer\nWhat is 2+2?,2,3,4,5,4' :
+                          'What is 2+2?\n2\n3\n4\n5\n4\n\nNext question here...'
+                        }
+                        rows={6}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <Button type="button" onClick={handleImport}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Import Questions
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setShowImport(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+              
               {formData.questions.map((question, qIndex) => (
-                <Card key={qIndex} className="p-4">
+                <Card key={qIndex} className="p-4 mb-4">
                   <div className="flex justify-between items-start mb-4">
                     <Label className="text-md font-medium">Question {qIndex + 1}</Label>
                     {formData.questions.length > 1 && (
@@ -808,13 +1103,14 @@ export default function TestSeriesApp() {
           <Tabs defaultValue="dashboard" className="w-full">
             <TabsList className="grid w-full" style={{
               gridTemplateColumns: user?.role === 'student' 
-                ? '1fr 1fr' 
+                ? '1fr 1fr 1fr' 
                 : user?.role === 'teacher'
-                ? '1fr 1fr 1fr 1fr'
-                : '1fr 1fr 1fr 1fr 1fr'
+                ? '1fr 1fr 1fr 1fr 1fr'
+                : '1fr 1fr 1fr 1fr 1fr 1fr'
             }}>
               <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
               <TabsTrigger value="tests">Test Series</TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
               {(user?.role === 'teacher' || user?.role === 'admin') && (
                 <TabsTrigger value="results">Results</TabsTrigger>
               )}
@@ -989,6 +1285,10 @@ export default function TestSeriesApp() {
               </div>
             </TabsContent>
 
+            <TabsContent value="profile" className="mt-6">
+              <ProfileComponent />
+            </TabsContent>
+
             {(user?.role === 'teacher' || user?.role === 'admin') && (
               <TabsContent value="results" className="mt-6">
                 <h2 className="text-2xl font-bold mb-6">Test Results</h2>
@@ -1081,6 +1381,35 @@ export default function TestSeriesApp() {
                     </Card>
                   </div>
                 )}
+                
+                {analytics && user?.role === 'admin' && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Total Users</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold">{analytics.totalUsers}</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Total Test Series</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold">{analytics.totalTestSeries}</div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Total Attempts</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-3xl font-bold">{analytics.totalAttempts}</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
               </TabsContent>
             )}
 
@@ -1095,14 +1424,19 @@ export default function TestSeriesApp() {
                         <div className="flex justify-between items-center">
                           <div>
                             <h3 className="font-semibold">{userData.name}</h3>
-                            <p className="text-gray-600">@{userData.username}</p>
+                            <p className="text-gray-600">{userData.username}</p>
                             <p className="text-sm text-gray-500">
                               Joined: {new Date(userData.createdAt).toLocaleDateString()}
                             </p>
                           </div>
-                          <Badge variant={userData.role === 'admin' ? 'destructive' : userData.role === 'teacher' ? 'secondary' : 'default'}>
-                            {userData.role.toUpperCase()}
-                          </Badge>
+                          <div className="text-right">
+                            <Badge variant={userData.role === 'admin' ? 'destructive' : userData.role === 'teacher' ? 'secondary' : 'default'}>
+                              {userData.role.toUpperCase()}
+                            </Badge>
+                            {userData.profile?.institution && (
+                              <p className="text-sm text-gray-500 mt-1">{userData.profile.institution}</p>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
