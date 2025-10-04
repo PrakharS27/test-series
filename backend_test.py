@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta
 
 # Configuration
-BASE_URL = "https://testmate-portal.preview.emergentagent.com/api"
+BASE_URL = "https://testprep-hub-6.preview.emergentagent.com/api"
 ADMIN_CREDENTIALS = {"username": "admin", "password": "admin123"}
 
 class TestSeriesAPITester:
