@@ -49,346 +49,515 @@ function getUserFromRequest(request) {
   return verifyToken(token);
 }
 
-// Email validation function
-function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
-// Check if email is from temporary email service
-function isTempEmail(email) {
-  const domain = email.split('@')[1]?.toLowerCase();
-  return TEMP_EMAIL_DOMAINS.includes(domain);
-}
+// Main handler function
+async function handler(request) {
+  const { method } = request;
+  const url = new URL(request.url);
+  const path = url.pathname.split('/').filter(Boolean).slice(1); // Remove 'api' from path
 
-// Parse CSV/text file for bulk question import
-function parseQuestionFile(content, format = 'csv') {
-  if (format === 'csv') {
-    const lines = content.split('\n').filter(line => line.trim());
-    const questions = [];
-    
-    for (let i = 1; i < lines.length; i++) { // Skip header
-      const cols = lines[i].split(',').map(col => col.trim().replace(/^"|"$/g, ''));
-      if (cols.length >= 6) {
-        questions.push({
-          question: cols[0],
-          options: [cols[1], cols[2], cols[3], cols[4]],
-          correctAnswer: cols[5]
-        });
-      }
-    }
-    return questions;
-  }
-  
-  if (format === 'text') {
-    const sections = content.split('\n\n').filter(section => section.trim());
-    const questions = [];
-    
-    sections.forEach(section => {
-      const lines = section.split('\n').map(line => line.trim()).filter(line => line);
-      if (lines.length >= 6) {
-        questions.push({
-          question: lines[0],
-          options: [lines[1], lines[2], lines[3], lines[4]],
-          correctAnswer: lines[5]
-        });
-      }
-    });
-    return questions;
-  }
-  
-  return [];
-}
-
-async function handler(request, { params }) {
-  const db = await connectDB();
-  const path = params?.path || [];
-  const method = request.method;
-  
-  // CORS headers
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-
+  // Handle CORS preflight
   if (method === 'OPTIONS') {
     return new NextResponse(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    // Authentication endpoints
+    const db = await connectDB();
+
+    // Authentication routes
     if (path[0] === 'auth') {
       if (path[1] === 'login' && method === 'POST') {
         const { username, password } = await request.json();
         
-        // Find user in database
         const user = await db.collection('users').findOne({ username });
-        if (!user) {
+        if (!user || !await bcrypt.compare(password, user.password)) {
           return NextResponse.json({ error: 'Invalid credentials' }, { status: 401, headers: corsHeaders });
         }
 
-        // Verify password
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) {
-          return NextResponse.json({ error: 'Invalid credentials' }, { status: 401, headers: corsHeaders });
-        }
-
-        // Generate JWT token
         const token = jwt.sign(
           { userId: user.userId, username: user.username, role: user.role },
           JWT_SECRET,
           { expiresIn: '24h' }
         );
 
-        return NextResponse.json({
-          token,
-          user: { userId: user.userId, username: user.username, role: user.role, name: user.name }
-        }, { headers: corsHeaders });
+        return NextResponse.json({ token, user: { userId: user.userId, username: user.username, role: user.role, name: user.name, selectedCategory: user.selectedCategory, selectedTeacher: user.selectedTeacher } }, { headers: corsHeaders });
       }
 
       if (path[1] === 'register' && method === 'POST') {
-        const { username, password, name, role } = await request.json();
-        
-        // Validate email format
-        if (!isValidEmail(username)) {
-          return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400, headers: corsHeaders });
-        }
-        
-        // Check for temporary email
-        if (isTempEmail(username)) {
-          return NextResponse.json({ error: 'Temporary email addresses are not allowed. Please use a permanent email address.' }, { status: 400, headers: corsHeaders });
-        }
-        
-        // Only allow student and teacher registration
-        if (!['student', 'teacher'].includes(role)) {
-          return NextResponse.json({ error: 'Invalid role' }, { status: 400, headers: corsHeaders });
-        }
+        const { username, password, name, role, email, phone, selectedCategory, selectedTeacher } = await request.json();
 
-        // Check if user already exists
-        const existingUser = await db.collection('users').findOne({ username });
+        // Check if user exists
+        const existingUser = await db.collection('users').findOne({ 
+          $or: [{ username }, { email }] 
+        });
         if (existingUser) {
-          return NextResponse.json({ error: 'Email already exists' }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: 'User already exists' }, { status: 400, headers: corsHeaders });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 12);
-        const userId = uuidv4();
+        // Block temporary email domains
+        if (email) {
+          const emailDomain = email.split('@')[1]?.toLowerCase();
+          if (TEMP_EMAIL_DOMAINS.includes(emailDomain)) {
+            return NextResponse.json({ error: 'Temporary email addresses are not allowed' }, { status: 400, headers: corsHeaders });
+          }
+        }
 
-        // Create user with profile data
-        const user = {
+        const userId = uuidv4();
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        const newUser = {
           userId,
           username,
           password: hashedPassword,
           name,
-          role,
-          profile: {
-            bio: '',
-            phone: '',
-            institution: '',
-            experience: '',
-            subjects: [],
-            profileImage: ''
-          },
-          createdAt: new Date(),
-          updatedAt: new Date()
+          role: role || 'student',
+          email: email || null,
+          phone: phone || null,
+          selectedCategory: selectedCategory || null,
+          selectedTeacher: selectedTeacher || null,
+          photo: null,
+          createdAt: new Date()
         };
 
-        await db.collection('users').insertOne(user);
+        await db.collection('users').insertOne(newUser);
 
-        return NextResponse.json({ message: 'User created successfully' }, { headers: corsHeaders });
+        const token = jwt.sign(
+          { userId, username, role: newUser.role },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+
+        return NextResponse.json({ 
+          token, 
+          user: { userId, username, role: newUser.role, name, selectedCategory, selectedTeacher } 
+        }, { headers: corsHeaders });
       }
 
-      if (path[1] === 'me' && method === 'GET') {
-        const user = getUserFromRequest(request);
+      if (path[1] === 'forgot-password' && method === 'POST') {
+        const { email } = await request.json();
+        
+        const user = await db.collection('users').findOne({ email });
         if (!user) {
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+          return NextResponse.json({ error: 'User not found with this email' }, { status: 404, headers: corsHeaders });
         }
-        
-        const userData = await db.collection('users').findOne(
-          { userId: user.userId },
-          { projection: { password: 0, _id: 0 } }
-        );
-        
-        return NextResponse.json(userData, { headers: corsHeaders });
-      }
-    }
 
-    // Protected routes - require authentication
-    const user = getUserFromRequest(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
-    }
+        // Generate reset token
+        const resetToken = uuidv4();
+        const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
-    // Profile management endpoints
-    if (path[0] === 'profile') {
-      if (method === 'GET') {
-        // Get current user's profile
-        const userData = await db.collection('users').findOne(
-          { userId: user.userId },
-          { projection: { password: 0, _id: 0 } }
-        );
-        
-        return NextResponse.json(userData, { headers: corsHeaders });
-      }
-
-      if (method === 'PUT') {
-        // Update user profile
-        const updateData = await request.json();
-        
-        // Remove sensitive fields from update
-        const { password, role, userId, username, ...profileUpdate } = updateData;
-        
         await db.collection('users').updateOne(
           { userId: user.userId },
           { 
             $set: { 
-              ...profileUpdate,
-              updatedAt: new Date() 
+              resetToken,
+              resetTokenExpiry 
             } 
           }
         );
+
+        // In a real app, send email here
+        // For now, return the reset token for testing
+        return NextResponse.json({ 
+          message: 'Password reset link sent to your email',
+          resetToken // Remove this in production
+        }, { headers: corsHeaders });
+      }
+
+      if (path[1] === 'reset-password' && method === 'POST') {
+        const { resetToken, newPassword } = await request.json();
         
+        const user = await db.collection('users').findOne({ 
+          resetToken,
+          resetTokenExpiry: { $gt: new Date() }
+        });
+
+        if (!user) {
+          return NextResponse.json({ error: 'Invalid or expired reset token' }, { status: 400, headers: corsHeaders });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+        await db.collection('users').updateOne(
+          { userId: user.userId },
+          { 
+            $set: { 
+              password: hashedPassword 
+            },
+            $unset: { 
+              resetToken: "",
+              resetTokenExpiry: "" 
+            }
+          }
+        );
+
+        return NextResponse.json({ message: 'Password reset successfully' }, { headers: corsHeaders });
+      }
+
+      if (path[1] === 'profile' && method === 'GET') {
+        const user = getUserFromRequest(request);
+        if (!user) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+        }
+
+        const userProfile = await db.collection('users').findOne(
+          { userId: user.userId },
+          { projection: { password: 0, resetToken: 0, resetTokenExpiry: 0 } }
+        );
+
+        return NextResponse.json(userProfile, { headers: corsHeaders });
+      }
+
+      if (path[1] === 'profile' && method === 'PUT') {
+        const user = getUserFromRequest(request);
+        if (!user) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+        }
+
+        const updates = await request.json();
+        delete updates.password; // Don't allow password updates here
+        delete updates.role; // Don't allow role changes
+
+        await db.collection('users').updateOne(
+          { userId: user.userId },
+          { $set: updates }
+        );
+
         return NextResponse.json({ message: 'Profile updated successfully' }, { headers: corsHeaders });
       }
     }
 
-    // Bulk question import endpoint
-    if (path[0] === 'import-questions' && method === 'POST') {
-      if (user.role !== 'teacher' && user.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+    // Categories routes
+    if (path[0] === 'categories') {
+      if (method === 'GET') {
+        const categories = await db.collection('categories').find({}).toArray();
+        return NextResponse.json(categories, { headers: corsHeaders });
       }
 
-      const { content, format } = await request.json();
-      
-      if (!content) {
-        return NextResponse.json({ error: 'No content provided' }, { status: 400, headers: corsHeaders });
-      }
-
-      try {
-        const questions = parseQuestionFile(content, format);
-        
-        if (questions.length === 0) {
-          return NextResponse.json({ error: 'No valid questions found in the file' }, { status: 400, headers: corsHeaders });
+      if (method === 'POST') {
+        const user = getUserFromRequest(request);
+        if (!user || !hasPermission(user.role, ['admin'])) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
         }
 
-        // Add questionIds to questions
-        const questionsWithIds = questions.map(q => ({ ...q, questionId: uuidv4() }));
-        
-        return NextResponse.json({ 
-          questions: questionsWithIds,
-          count: questionsWithIds.length,
-          message: `Successfully parsed ${questionsWithIds.length} questions`
-        }, { headers: corsHeaders });
-        
-      } catch (error) {
-        return NextResponse.json({ error: 'Failed to parse questions file' }, { status: 400, headers: corsHeaders });
+        const { name, description } = await request.json();
+        const categoryId = uuidv4();
+
+        const category = {
+          categoryId,
+          name,
+          description: description || '',
+          createdBy: user.userId,
+          createdAt: new Date()
+        };
+
+        await db.collection('categories').insertOne(category);
+        return NextResponse.json(category, { headers: corsHeaders });
+      }
+
+      if (method === 'DELETE' && path[1]) {
+        const user = getUserFromRequest(request);
+        if (!user || !hasPermission(user.role, ['admin'])) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
+        }
+
+        await db.collection('categories').deleteOne({ categoryId: path[1] });
+        return NextResponse.json({ message: 'Category deleted successfully' }, { headers: corsHeaders });
       }
     }
 
-    // Test Series endpoints
-    if (path[0] === 'test-series') {
-      if (method === 'GET' && !path[1]) {
-        // Get all test series (filtered by role)
-        let filter = {};
-        if (user.role === 'teacher') {
-          filter = { createdBy: user.userId };
+    // Teachers by category route
+    if (path[0] === 'teachers' && method === 'GET') {
+      const { category } = Object.fromEntries(url.searchParams);
+      
+      let query = { role: 'teacher' };
+      if (category) {
+        // Find teachers who have test series in this category
+        const testSeries = await db.collection('testSeries').find({ category }).distinct('createdBy');
+        query.userId = { $in: testSeries };
+      }
+
+      const teachers = await db.collection('users').find(
+        query,
+        { projection: { password: 0, resetToken: 0, resetTokenExpiry: 0 } }
+      ).toArray();
+
+      return NextResponse.json(teachers, { headers: corsHeaders });
+    }
+
+    // File upload route for teacher photos
+    if (path[0] === 'upload' && path[1] === 'photo' && method === 'POST') {
+      const user = getUserFromRequest(request);
+      if (!user || !hasPermission(user.role, ['teacher', 'admin'])) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
+      }
+
+      try {
+        const formData = await request.formData();
+        const file = formData.get('photo');
+        
+        if (!file) {
+          return NextResponse.json({ error: 'No file uploaded' }, { status: 400, headers: corsHeaders });
         }
+
+        // Validate file type
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        if (!validTypes.includes(file.type)) {
+          return NextResponse.json({ error: 'Invalid file type. Only JPEG, PNG, and GIF are allowed.' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Convert file to base64 for storage
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const base64 = buffer.toString('base64');
+        const photoData = `data:${file.type};base64,${base64}`;
+
+        // Update user photo
+        await db.collection('users').updateOne(
+          { userId: user.userId },
+          { $set: { photo: photoData } }
+        );
+
+        return NextResponse.json({ 
+          message: 'Photo uploaded successfully',
+          photoUrl: photoData 
+        }, { headers: corsHeaders });
+
+      } catch (error) {
+        console.error('Photo upload error:', error);
+        return NextResponse.json({ error: 'Failed to upload photo' }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // CSV bulk upload route
+    if (path[0] === 'upload' && path[1] === 'csv' && method === 'POST') {
+      const user = getUserFromRequest(request);
+      if (!user || !hasPermission(user.role, ['teacher', 'admin'])) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
+      }
+
+      try {
+        const formData = await request.formData();
+        const file = formData.get('csv');
+        const testSeriesId = formData.get('testSeriesId');
         
-        const testSeries = await db.collection('testSeries')
-          .find(filter, { projection: { _id: 0 } })
-          .sort({ createdAt: -1 })
-          .toArray();
+        if (!file || !testSeriesId) {
+          return NextResponse.json({ error: 'CSV file and test series ID required' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Validate file type
+        if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
+          return NextResponse.json({ error: 'Invalid file type. Only CSV files are allowed.' }, { status: 400, headers: corsHeaders });
+        }
+
+        const csvText = await file.text();
+        const lines = csvText.split('\n').filter(line => line.trim());
         
+        if (lines.length < 2) {
+          return NextResponse.json({ error: 'CSV must have at least a header row and one question' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Skip header row
+        const questions = [];
+        for (let i = 1; i < lines.length; i++) {
+          const columns = lines[i].split(',').map(col => col.trim().replace(/"/g, ''));
+          
+          if (columns.length >= 7) {
+            const questionId = uuidv4();
+            questions.push({
+              questionId,
+              question: columns[0],
+              options: [columns[1], columns[2], columns[3], columns[4]],
+              correctAnswer: parseInt(columns[5]) - 1, // Convert to 0-based index
+              explanation: columns[6] || ''
+            });
+          }
+        }
+
+        if (questions.length === 0) {
+          return NextResponse.json({ error: 'No valid questions found in CSV' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Update test series with new questions
+        await db.collection('testSeries').updateOne(
+          { testSeriesId, createdBy: user.userId },
+          { 
+            $set: { 
+              questions,
+              updatedAt: new Date()
+            } 
+          }
+        );
+
+        return NextResponse.json({ 
+          message: `Successfully uploaded ${questions.length} questions`,
+          questionsCount: questions.length 
+        }, { headers: corsHeaders });
+
+      } catch (error) {
+        console.error('CSV upload error:', error);
+        return NextResponse.json({ error: 'Failed to process CSV file' }, { status: 500, headers: corsHeaders });
+      }
+    }
+
+    // Test Series routes
+    if (path[0] === 'test-series') {
+      const user = getUserFromRequest(request);
+
+      if (method === 'GET') {
+        let query = {};
+        const { category, teacher } = Object.fromEntries(url.searchParams);
+        
+        if (user?.role === 'student') {
+          // Students see only test series from their selected teacher and category
+          if (user.selectedCategory) {
+            query.category = user.selectedCategory;
+          }
+          if (user.selectedTeacher) {
+            query.createdBy = user.selectedTeacher;
+          }
+          if (category) query.category = category;
+          if (teacher) query.createdBy = teacher;
+        } else if (user?.role === 'teacher') {
+          query.createdBy = user.userId;
+        }
+        // Admin sees all
+
+        const testSeries = await db.collection('testSeries').find(query).toArray();
+        
+        // Add creator names
+        for (const test of testSeries) {
+          const creator = await db.collection('users').findOne(
+            { userId: test.createdBy },
+            { projection: { name: 1 } }
+          );
+          test.createdByName = creator?.name || 'Unknown';
+        }
+
         return NextResponse.json(testSeries, { headers: corsHeaders });
       }
 
-      if (method === 'POST' && user.role === 'student') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
-      }
+      if (method === 'POST') {
+        if (!user || !hasPermission(user.role, ['teacher', 'admin'])) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
+        }
 
-      if (method === 'POST' && (user.role === 'admin' || user.role === 'teacher')) {
         const { title, description, category, duration, questions } = await request.json();
-        
+
         const testSeriesId = uuidv4();
         const testSeries = {
           testSeriesId,
           title,
           description,
           category,
-          duration, // in minutes
-          questions: questions.map(q => ({ ...q, questionId: q.questionId || uuidv4() })),
+          duration: parseInt(duration),
+          questions: questions || [],
           createdBy: user.userId,
-          createdByName: user.name,
           createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
+          updatedAt: new Date()
         };
 
         await db.collection('testSeries').insertOne(testSeries);
-        
-        return NextResponse.json({ message: 'Test series created successfully', testSeriesId }, { headers: corsHeaders });
+        return NextResponse.json(testSeries, { headers: corsHeaders });
       }
 
-      if (method === 'PUT' && path[1] && (user.role === 'admin' || user.role === 'teacher')) {
-        const testSeriesId = path[1];
-        const updateData = await request.json();
-        
-        let filter = { testSeriesId };
-        if (user.role === 'teacher') {
-          filter.createdBy = user.userId;
+      if (method === 'PUT' && path[1]) {
+        if (!user || !hasPermission(user.role, ['teacher', 'admin'])) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
         }
+
+        const testSeriesId = path[1];
+        const updates = await request.json();
+        updates.updatedAt = new Date();
+
+        let query = { testSeriesId };
+        if (user.role === 'teacher') {
+          query.createdBy = user.userId;
+        }
+
+        const result = await db.collection('testSeries').updateOne(query, { $set: updates });
         
-        await db.collection('testSeries').updateOne(
-          filter,
-          { $set: { ...updateData, updatedAt: new Date() } }
-        );
-        
+        if (result.matchedCount === 0) {
+          return NextResponse.json({ error: 'Test series not found or unauthorized' }, { status: 404, headers: corsHeaders });
+        }
+
         return NextResponse.json({ message: 'Test series updated successfully' }, { headers: corsHeaders });
       }
 
-      if (method === 'DELETE' && path[1] && (user.role === 'admin' || user.role === 'teacher')) {
-        const testSeriesId = path[1];
-        
-        let filter = { testSeriesId };
-        if (user.role === 'teacher') {
-          filter.createdBy = user.userId;
+      if (method === 'DELETE' && path[1]) {
+        if (!user || !hasPermission(user.role, ['teacher', 'admin'])) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
         }
-        
-        await db.collection('testSeries').deleteOne(filter);
-        
-        return NextResponse.json({ message: 'Test series deleted successfully' }, { headers: corsHeaders });
-      }
 
-      if (method === 'GET' && path[1]) {
-        // Get single test series
         const testSeriesId = path[1];
-        const testSeries = await db.collection('testSeries').findOne(
-          { testSeriesId },
-          { projection: { _id: 0 } }
-        );
-        
-        if (!testSeries) {
-          return NextResponse.json({ error: 'Test series not found' }, { status: 404, headers: corsHeaders });
+        let query = { testSeriesId };
+        if (user.role === 'teacher') {
+          query.createdBy = user.userId;
         }
+
+        const result = await db.collection('testSeries').deleteOne(query);
         
-        return NextResponse.json(testSeries, { headers: corsHeaders });
+        if (result.deletedCount === 0) {
+          return NextResponse.json({ error: 'Test series not found or unauthorized' }, { status: 404, headers: corsHeaders });
+        }
+
+        return NextResponse.json({ message: 'Test series deleted successfully' }, { headers: corsHeaders });
       }
     }
 
-    // Test Attempts endpoints
+    // Test Attempts routes
     if (path[0] === 'test-attempts') {
+      const user = getUserFromRequest(request);
+      if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
+      }
+
+      if (method === 'GET') {
+        let query = {};
+        if (user.role === 'student') {
+          query.studentId = user.userId;
+        } else if (user.role === 'teacher') {
+          // Get attempts for teacher's test series
+          const teacherTests = await db.collection('testSeries').find({ createdBy: user.userId }).toArray();
+          const testIds = teacherTests.map(test => test.testSeriesId);
+          query.testSeriesId = { $in: testIds };
+        }
+        // Admin sees all
+
+        const attempts = await db.collection('testAttempts').find(query).toArray();
+        
+        // Add test series names and student details
+        for (const attempt of attempts) {
+          const testSeries = await db.collection('testSeries').findOne({ testSeriesId: attempt.testSeriesId });
+          attempt.testSeriesTitle = testSeries?.title || 'Unknown';
+          
+          if (user.role !== 'student') {
+            const student = await db.collection('users').findOne(
+              { userId: attempt.studentId },
+              { projection: { name: 1, email: 1, phone: 1 } }
+            );
+            attempt.studentDetails = student;
+          }
+        }
+
+        return NextResponse.json(attempts, { headers: corsHeaders });
+      }
+
       if (method === 'POST' && user.role === 'student') {
-        // Start a test attempt
+        // Start a new test attempt
         const { testSeriesId } = await request.json();
         
-        // Check if test series exists
-        const testSeries = await db.collection('testSeries').findOne({ testSeriesId });
-        if (!testSeries) {
-          return NextResponse.json({ error: 'Test series not found' }, { status: 404, headers: corsHeaders });
-        }
-        
-        // Check if student already attempted this test
+        // Check if already attempted
         const existingAttempt = await db.collection('testAttempts').findOne({
           testSeriesId,
           studentId: user.userId,
@@ -397,6 +566,27 @@ async function handler(request, { params }) {
         
         if (existingAttempt) {
           return NextResponse.json({ error: 'Test already completed' }, { status: 400, headers: corsHeaders });
+        }
+
+        // Check for in-progress attempt
+        const inProgressAttempt = await db.collection('testAttempts').findOne({
+          testSeriesId,
+          studentId: user.userId,
+          status: 'in_progress'
+        });
+
+        if (inProgressAttempt) {
+          return NextResponse.json({ 
+            attemptId: inProgressAttempt.attemptId, 
+            endTime: inProgressAttempt.endTime,
+            totalQuestions: inProgressAttempt.totalQuestions,
+            existing: true
+          }, { headers: corsHeaders });
+        }
+        
+        const testSeries = await db.collection('testSeries').findOne({ testSeriesId });
+        if (!testSeries) {
+          return NextResponse.json({ error: 'Test series not found' }, { status: 404, headers: corsHeaders });
         }
         
         const attemptId = uuidv4();
@@ -429,7 +619,8 @@ async function handler(request, { params }) {
       if (method === 'PUT' && path[1] && user.role === 'student') {
         // Submit answer or complete test
         const attemptId = path[1];
-        const { questionId, answer, action } = await request.json();
+        const requestBody = await request.json();
+        const { questionId, answer, action } = requestBody;
         
         const attempt = await db.collection('testAttempts').findOne({
           attemptId,
@@ -470,7 +661,8 @@ async function handler(request, { params }) {
           return NextResponse.json({ 
             message: 'Test time expired and auto-submitted',
             score,
-            totalQuestions: testSeries.questions.length
+            totalQuestions: testSeries.questions.length,
+            timeExpired: true
           }, { headers: corsHeaders });
         }
         
@@ -489,8 +681,11 @@ async function handler(request, { params }) {
           const testSeries = await db.collection('testSeries').findOne({ testSeriesId: attempt.testSeriesId });
           let score = 0;
           
+          // Get the latest answers from the attempt
+          const currentAttempt = await db.collection('testAttempts').findOne({ attemptId });
+          
           for (const question of testSeries.questions) {
-            if (attempt.answers[question.questionId] === question.correctAnswer) {
+            if (currentAttempt.answers[question.questionId] === question.correctAnswer) {
               score++;
             }
           }
@@ -507,173 +702,117 @@ async function handler(request, { params }) {
           );
           
           return NextResponse.json({ 
-            message: 'Test completed successfully',
             score,
             totalQuestions: testSeries.questions.length,
-            percentage: Math.round((score / testSeries.questions.length) * 100)
+            percentage: Math.round((score / testSeries.questions.length) * 100),
+            message: 'Test completed successfully'
           }, { headers: corsHeaders });
         }
       }
-
-      if (method === 'GET' && path[1]) {
-        // Get test attempt details
-        const attemptId = path[1];
-        const attempt = await db.collection('testAttempts').findOne(
-          { attemptId },
-          { projection: { _id: 0 } }
-        );
-        
-        if (!attempt) {
-          return NextResponse.json({ error: 'Test attempt not found' }, { status: 404, headers: corsHeaders });
-        }
-        
-        // Only allow student to see their own attempts or teachers/admins to see attempts for their tests
-        if (user.role === 'student' && attempt.studentId !== user.userId) {
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
-        }
-        
-        return NextResponse.json(attempt, { headers: corsHeaders });
-      }
-
-      if (method === 'GET' && !path[1]) {
-        // Get test attempts (for teachers to see results)
-        let filter = {};
-        
-        if (user.role === 'student') {
-          filter = { studentId: user.userId };
-        } else if (user.role === 'teacher') {
-          // Get attempts for teacher's test series
-          const teacherTestSeries = await db.collection('testSeries')
-            .find({ createdBy: user.userId })
-            .toArray();
-          const testSeriesIds = teacherTestSeries.map(ts => ts.testSeriesId);
-          filter = { testSeriesId: { $in: testSeriesIds } };
-        }
-        
-        const attempts = await db.collection('testAttempts')
-          .find(filter, { projection: { _id: 0 } })
-          .sort({ createdAt: -1 })
-          .toArray();
-        
-        return NextResponse.json(attempts, { headers: corsHeaders });
-      }
     }
 
-    // Users endpoint (admin only)
+    // Users management routes (Admin only)
     if (path[0] === 'users') {
-      if (user.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
+      const user = getUserFromRequest(request);
+      if (!user || !hasPermission(user.role, ['admin'])) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
       }
+
       if (method === 'GET') {
-        const users = await db.collection('users')
-          .find({}, { projection: { password: 0, _id: 0 } })
-          .sort({ createdAt: -1 })
-          .toArray();
-        
+        const users = await db.collection('users').find(
+          {},
+          { projection: { password: 0, resetToken: 0, resetTokenExpiry: 0 } }
+        ).toArray();
         return NextResponse.json(users, { headers: corsHeaders });
       }
 
       if (method === 'POST') {
-        // Create admin user
-        const { username, password, name } = await request.json();
-        
-        // Validate email format
-        if (!isValidEmail(username)) {
-          return NextResponse.json({ error: 'Please provide a valid email address' }, { status: 400, headers: corsHeaders });
-        }
-        
-        const existingUser = await db.collection('users').findOne({ username });
+        // Create new admin user
+        const { username, password, name, email, role } = await request.json();
+
+        const existingUser = await db.collection('users').findOne({ 
+          $or: [{ username }, { email }] 
+        });
         if (existingUser) {
-          return NextResponse.json({ error: 'Email already exists' }, { status: 400, headers: corsHeaders });
+          return NextResponse.json({ error: 'User already exists' }, { status: 400, headers: corsHeaders });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 12);
         const userId = uuidv4();
+        const hashedPassword = await bcrypt.hash(password, 12);
 
         const newUser = {
           userId,
           username,
           password: hashedPassword,
           name,
-          role: 'admin',
-          profile: {
-            bio: '',
-            phone: '',
-            institution: '',
-            experience: '',
-            subjects: [],
-            profileImage: ''
-          },
-          createdAt: new Date(),
-          updatedAt: new Date()
+          email: email || null,
+          role: role || 'admin',
+          createdAt: new Date()
         };
 
         await db.collection('users').insertOne(newUser);
         
-        return NextResponse.json({ message: 'Admin user created successfully' }, { headers: corsHeaders });
+        const { password: _, ...userWithoutPassword } = newUser;
+        return NextResponse.json(userWithoutPassword, { headers: corsHeaders });
       }
     }
 
-    // Analytics endpoint
+    // Analytics routes
     if (path[0] === 'analytics') {
-      if (user.role === 'student') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: corsHeaders });
-      }
-      
-      if (user.role === 'teacher') {
-        // Get analytics for teacher's test series
-        const teacherTestSeries = await db.collection('testSeries')
-          .find({ createdBy: user.userId })
-          .toArray();
-        
-        const testSeriesIds = teacherTestSeries.map(ts => ts.testSeriesId);
-        
-        const attempts = await db.collection('testAttempts')
-          .find({ testSeriesId: { $in: testSeriesIds }, status: 'completed' })
-          .toArray();
-        
-        const analytics = {
-          totalTestSeries: teacherTestSeries.length,
-          totalAttempts: attempts.length,
-          averageScore: attempts.length > 0 ? attempts.reduce((sum, att) => sum + att.score, 0) / attempts.length : 0,
-          testSeriesStats: teacherTestSeries.map(ts => {
-            const tsAttempts = attempts.filter(att => att.testSeriesId === ts.testSeriesId);
-            return {
-              testSeriesId: ts.testSeriesId,
-              title: ts.title,
-              attempts: tsAttempts.length,
-              averageScore: tsAttempts.length > 0 ? tsAttempts.reduce((sum, att) => sum + att.score, 0) / tsAttempts.length : 0
-            };
-          })
-        };
-        
-        return NextResponse.json(analytics, { headers: corsHeaders });
+      const user = getUserFromRequest(request);
+      if (!user || !hasPermission(user.role, ['teacher', 'admin'])) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 403, headers: corsHeaders });
       }
 
-      if (user.role === 'admin') {
-        // Get system-wide analytics
-        const totalUsers = await db.collection('users').countDocuments();
-        const totalTestSeries = await db.collection('testSeries').countDocuments();
-        const totalAttempts = await db.collection('testAttempts').countDocuments({ status: 'completed' });
-        
-        const analytics = {
-          totalUsers,
-          totalTestSeries,
-          totalAttempts
-        };
-        
+      if (method === 'GET') {
+        let analytics = {};
+
+        if (user.role === 'admin') {
+          // System-wide analytics for admin
+          const totalUsers = await db.collection('users').countDocuments();
+          const totalTestSeries = await db.collection('testSeries').countDocuments();
+          const totalAttempts = await db.collection('testAttempts').countDocuments();
+          
+          analytics = {
+            totalUsers,
+            totalTestSeries,
+            totalAttempts,
+            usersByRole: await db.collection('users').aggregate([
+              { $group: { _id: '$role', count: { $sum: 1 } } }
+            ]).toArray(),
+            attemptsByStatus: await db.collection('testAttempts').aggregate([
+              { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]).toArray()
+          };
+        } else if (user.role === 'teacher') {
+          // Teacher-specific analytics
+          const teacherTests = await db.collection('testSeries').find({ createdBy: user.userId });
+          const testIds = (await teacherTests.toArray()).map(test => test.testSeriesId);
+          
+          const totalTestSeries = testIds.length;
+          const totalAttempts = await db.collection('testAttempts').countDocuments({
+            testSeriesId: { $in: testIds }
+          });
+          
+          analytics = {
+            totalTestSeries,
+            totalAttempts,
+            averageScore: await db.collection('testAttempts').aggregate([
+              { $match: { testSeriesId: { $in: testIds }, status: 'completed' } },
+              { $group: { _id: null, avgScore: { $avg: '$score' } } }
+            ]).toArray()
+          };
+        }
+
         return NextResponse.json(analytics, { headers: corsHeaders });
       }
     }
 
-    return NextResponse.json({ error: 'Endpoint not found' }, { status: 404, headers: corsHeaders });
+    return NextResponse.json({ error: 'Route not found' }, { status: 404, headers: corsHeaders });
 
   } catch (error) {
     console.error('API Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500, headers: corsHeaders }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }
 
