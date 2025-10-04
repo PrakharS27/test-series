@@ -243,7 +243,7 @@ async function handler(request) {
             {
               $lookup: {
                 from: 'testSeries',
-                localField: 'name',
+                localField: 'categoryId',
                 foreignField: 'category',
                 as: 'testSeries'
               }
