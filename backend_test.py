@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend API Testing for Test Series Web App
-Tests all major API endpoints and workflows including authentication, 
-test series management, test attempts, user management, and analytics.
+Backend Test for Teacher Test Series Visibility Issue
+Tests the specific issue: Teacher creates test but can't see it in their list
 """
 
 import requests
 import json
 import time
-import uuid
-from datetime import datetime, timedelta
+import os
+from datetime import datetime
 
-# Configuration
-BASE_URL = "https://test-display-issue.preview.emergentagent.com/api"
-ADMIN_CREDENTIALS = {"username": "admin", "password": "admin123"}
+# Get base URL from environment
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
+API_BASE = f"{BASE_URL}/api"
 
 class TestSeriesAPITester:
     def __init__(self):
