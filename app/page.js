@@ -58,13 +58,8 @@ export default function TestSeriesApp() {
         localStorage.setItem('token', data.token);
         setUser(data.user);
         setIsAuthenticated(true);
+        setAuthStep('dashboard');
         toast.success('Login successful!');
-        
-        // If student without category/teacher selection, show selection flow
-        if (data.user.role === 'student' && (!data.user.selectedCategory || !data.user.selectedTeacher)) {
-          setAuthStep('category-select');
-          return;
-        }
       } else {
         toast.error(data.error || 'Login failed');
       }
