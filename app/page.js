@@ -370,6 +370,7 @@ export default function TestSeriesApp() {
       
       if (response.ok) {
         setTestResult(data);
+        setDetailedResults(data.detailedResults);
         setTestCompleted(true);
         setShowSubmitDialog(false); // Close dialog immediately
         toast.success('Test submitted successfully!');
