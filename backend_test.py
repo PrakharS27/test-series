@@ -45,9 +45,6 @@ class TestResults:
 def test_teacher_login(results):
     """Test login with specific teacher mentioned by user"""
     try:
-        # Test with the specific teacher userId mentioned: "97717e61-b920-4faa-9d2a-7a70961474f1"
-        # First try to find this user or create a test teacher
-        
         # Try login with teacher1 (from previous tests)
         response = requests.post(f"{BASE_URL}/auth/login", 
                                json={"username": "teacher1", "password": "teacher123"}, 
@@ -92,6 +89,357 @@ def test_teacher_login(results):
     except Exception as e:
         results.add_result("Teacher Login", False, f"Exception: {str(e)}")
         return None, None
+
+def test_create_test_series_status(results, token, teacher_id):
+    """Test that new test series are created with 'published' status by default"""
+    if not token:
+        results.add_result("Create Test Series Status", False, "No valid token")
+        return None
+    
+    try:
+        auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+        
+        test_data = {
+            "title": f"Test Status Check - {int(time.time())}",
+            "description": "Testing default status creation",
+            "category": "Mathematics",
+            "duration": 60,
+            "questions": [
+                {
+                    "question": "What is 2+2?",
+                    "options": ["3", "4", "5", "6"],
+                    "correctAnswer": 1,
+                    "explanation": "2+2 equals 4"
+                }
+            ]
+        }
+        
+        response = requests.post(f"{BASE_URL}/test-series", 
+                               json=test_data, 
+                               headers=auth_headers)
+        
+        if response.status_code == 200:
+            created_test = response.json()
+            test_id = created_test.get('testSeriesId')
+            status = created_test.get('status')
+            
+            if status == 'published':
+                results.add_result("Default Status Check", True, 
+                                 f"Test created with 'published' status (testId: {test_id})")
+                return test_id
+            else:
+                results.add_result("Default Status Check", False, 
+                                 f"Test created with '{status}' status instead of 'published' (testId: {test_id})")
+                return test_id
+        else:
+            results.add_result("Create Test Series Status", False, 
+                             f"Failed to create test series: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        results.add_result("Create Test Series Status", False, f"Exception: {str(e)}")
+        return None
+
+def test_teacher_can_see_own_tests(results, token, teacher_id):
+    """Test that teacher can see their own test series immediately after creation"""
+    if not token:
+        results.add_result("Teacher Test Visibility", False, "No valid token")
+        return
+    
+    try:
+        auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+        
+        # Get teacher's test series
+        response = requests.get(f"{BASE_URL}/test-series", headers=auth_headers)
+        
+        if response.status_code == 200:
+            test_series = response.json()
+            teacher_tests = [test for test in test_series if test.get('createdBy') == teacher_id]
+            
+            results.add_result("Teacher Test List Access", True, 
+                             f"Retrieved {len(test_series)} total tests, {len(teacher_tests)} created by teacher")
+            
+            # Check if teacher can see both published and draft tests
+            published_tests = [test for test in teacher_tests if test.get('status') == 'published']
+            draft_tests = [test for test in teacher_tests if test.get('status') == 'draft']
+            
+            results.add_result("Teacher Published Tests Visibility", True, 
+                             f"Teacher can see {len(published_tests)} published tests")
+            results.add_result("Teacher Draft Tests Visibility", True, 
+                             f"Teacher can see {len(draft_tests)} draft tests")
+            
+            return test_series
+        else:
+            results.add_result("Teacher Test Visibility", False, 
+                             f"Failed to get test series: {response.status_code} - {response.text}")
+            return []
+            
+    except Exception as e:
+        results.add_result("Teacher Test Visibility", False, f"Exception: {str(e)}")
+        return []
+
+def test_create_draft_test_manually(results, token, teacher_id):
+    """Test creating a test with draft status manually and verify teacher can see it"""
+    if not token:
+        results.add_result("Manual Draft Test Creation", False, "No valid token")
+        return None
+    
+    try:
+        auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+        
+        # Create test series first
+        test_data = {
+            "title": f"Draft Test Manual - {int(time.time())}",
+            "description": "Testing manual draft creation",
+            "category": "Science",
+            "duration": 45,
+            "questions": [
+                {
+                    "question": "What is H2O?",
+                    "options": ["Water", "Hydrogen", "Oxygen", "Salt"],
+                    "correctAnswer": 0,
+                    "explanation": "H2O is the chemical formula for water"
+                }
+            ]
+        }
+        
+        create_response = requests.post(f"{BASE_URL}/test-series", 
+                                      json=test_data, 
+                                      headers=auth_headers)
+        
+        if create_response.status_code == 200:
+            created_test = create_response.json()
+            test_id = created_test.get('testSeriesId')
+            
+            # Now update it to draft status
+            update_response = requests.put(f"{BASE_URL}/test-series/{test_id}", 
+                                         json={"status": "draft"}, 
+                                         headers=auth_headers)
+            
+            if update_response.status_code == 200:
+                results.add_result("Manual Draft Creation", True, 
+                                 f"Successfully created and updated test to draft status (testId: {test_id})")
+                
+                # Verify teacher can still see it
+                list_response = requests.get(f"{BASE_URL}/test-series", headers=auth_headers)
+                if list_response.status_code == 200:
+                    test_series = list_response.json()
+                    draft_test = next((test for test in test_series if test.get('testSeriesId') == test_id), None)
+                    
+                    if draft_test and draft_test.get('status') == 'draft':
+                        results.add_result("Draft Test Visibility", True, 
+                                         f"Teacher can see draft test in their list (status: {draft_test.get('status')})")
+                    else:
+                        results.add_result("Draft Test Visibility", False, 
+                                         f"Draft test not found in teacher's list or wrong status")
+                
+                return test_id
+            else:
+                results.add_result("Manual Draft Creation", False, 
+                                 f"Failed to update test to draft: {update_response.status_code}")
+                return test_id
+        else:
+            results.add_result("Manual Draft Test Creation", False, 
+                             f"Failed to create test: {create_response.status_code}")
+            return None
+            
+    except Exception as e:
+        results.add_result("Manual Draft Test Creation", False, f"Exception: {str(e)}")
+        return None
+
+def test_specific_user_scenario(results):
+    """Test the specific scenario mentioned by user with testSeriesId: 4991d975-72ef-42df-80e2-ec8a806a33ab"""
+    try:
+        # Try to find the specific test series mentioned by user
+        # First need admin access to check all tests
+        admin_response = requests.post(f"{BASE_URL}/auth/login", 
+                                     json={"username": "admin", "password": "admin123"}, 
+                                     headers=HEADERS)
+        
+        if admin_response.status_code == 200:
+            admin_data = admin_response.json()
+            admin_token = admin_data.get('token')
+            admin_headers = {**HEADERS, "Authorization": f"Bearer {admin_token}"}
+            
+            # Get all test series as admin
+            all_tests_response = requests.get(f"{BASE_URL}/test-series", headers=admin_headers)
+            
+            if all_tests_response.status_code == 200:
+                all_tests = all_tests_response.json()
+                specific_test = next((test for test in all_tests 
+                                    if test.get('testSeriesId') == '4991d975-72ef-42df-80e2-ec8a806a33ab'), None)
+                
+                if specific_test:
+                    results.add_result("Specific Test Found", True, 
+                                     f"Found test {specific_test.get('testSeriesId')} with status: {specific_test.get('status')}")
+                    
+                    # Check if the teacher who created this test can see it
+                    teacher_id = specific_test.get('createdBy')
+                    if teacher_id:
+                        results.add_result("Specific Test Analysis", True, 
+                                         f"Test created by teacher: {teacher_id}, status: {specific_test.get('status')}")
+                else:
+                    results.add_result("Specific Test Found", False, 
+                                     "Test with ID 4991d975-72ef-42df-80e2-ec8a806a33ab not found in database")
+            else:
+                results.add_result("Admin Test List", False, 
+                                 f"Failed to get all tests as admin: {all_tests_response.status_code}")
+        else:
+            results.add_result("Admin Login for Specific Test Check", False, 
+                             f"Failed to login as admin: {admin_response.status_code}")
+            
+    except Exception as e:
+        results.add_result("Specific User Scenario", False, f"Exception: {str(e)}")
+
+def test_teacher_filtering_parameters(results, token, teacher_id):
+    """Test various URL parameters that might affect test visibility"""
+    if not token:
+        results.add_result("Teacher Filtering Parameters", False, "No valid token")
+        return
+    
+    try:
+        auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+        
+        # Test different parameter combinations
+        test_params = [
+            ("", "Default (no parameters)"),
+            ("?includeUnpublished=true", "Include unpublished explicitly"),
+            ("?includeUnpublished=false", "Exclude unpublished explicitly"),
+            ("?category=Mathematics", "Filter by category"),
+            ("?preview=false", "Preview mode off")
+        ]
+        
+        for params, description in test_params:
+            response = requests.get(f"{BASE_URL}/test-series{params}", headers=auth_headers)
+            
+            if response.status_code == 200:
+                test_series = response.json()
+                teacher_tests = [test for test in test_series if test.get('createdBy') == teacher_id]
+                results.add_result(f"Parameter Test: {description}", True, 
+                                 f"Retrieved {len(teacher_tests)} teacher tests with params: {params}")
+            else:
+                results.add_result(f"Parameter Test: {description}", False, 
+                                 f"Failed with params {params}: {response.status_code}")
+                
+    except Exception as e:
+        results.add_result("Teacher Filtering Parameters", False, f"Exception: {str(e)}")
+
+def test_rapid_test_creation_visibility(results, token, teacher_id):
+    """Test creating multiple tests rapidly and checking immediate visibility"""
+    if not token:
+        results.add_result("Rapid Test Creation", False, "No valid token")
+        return
+    
+    try:
+        auth_headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+        created_test_ids = []
+        
+        # Create 3 tests rapidly
+        for i in range(3):
+            test_data = {
+                "title": f"Rapid Test {i+1} - {int(time.time())}",
+                "description": f"Testing rapid creation #{i+1}",
+                "category": "Physics",
+                "duration": 30,
+                "questions": [
+                    {
+                        "question": f"Test question {i+1}?",
+                        "options": ["A", "B", "C", "D"],
+                        "correctAnswer": i % 4,
+                        "explanation": f"Answer explanation {i+1}"
+                    }
+                ]
+            }
+            
+            create_response = requests.post(f"{BASE_URL}/test-series", 
+                                          json=test_data, 
+                                          headers=auth_headers)
+            
+            if create_response.status_code == 200:
+                created_test = create_response.json()
+                test_id = created_test.get('testSeriesId')
+                created_test_ids.append(test_id)
+                
+                # Immediately check if it's visible
+                list_response = requests.get(f"{BASE_URL}/test-series", headers=auth_headers)
+                if list_response.status_code == 200:
+                    test_series = list_response.json()
+                    found_test = next((test for test in test_series if test.get('testSeriesId') == test_id), None)
+                    
+                    if found_test:
+                        results.add_result(f"Rapid Test {i+1} Immediate Visibility", True, 
+                                         f"Test {test_id} immediately visible after creation")
+                    else:
+                        results.add_result(f"Rapid Test {i+1} Immediate Visibility", False, 
+                                         f"Test {test_id} NOT immediately visible after creation")
+            else:
+                results.add_result(f"Rapid Test {i+1} Creation", False, 
+                                 f"Failed to create test {i+1}: {create_response.status_code}")
+            
+            time.sleep(0.5)  # Small delay between creations
+        
+        results.add_result("Rapid Test Creation Summary", True, 
+                         f"Created {len(created_test_ids)} tests rapidly: {created_test_ids}")
+        
+    except Exception as e:
+        results.add_result("Rapid Test Creation", False, f"Exception: {str(e)}")
+
+def main():
+    print("🧪 BACKEND TESTING: Teacher Test Series Visibility Issue")
+    print("=" * 60)
+    print("Testing specific user report about draft status and visibility problems")
+    print("User reported testSeriesId: 4991d975-72ef-42df-80e2-ec8a806a33ab with status: 'draft'")
+    print("User reported teacher userId: 97717e61-b920-4faa-9d2a-7a70961474f1")
+    print()
+    
+    results = TestResults()
+    
+    # Test 1: Teacher Login
+    print("🔐 Testing Teacher Authentication...")
+    token, teacher_id = test_teacher_login(results)
+    
+    if token and teacher_id:
+        print(f"\n📝 Testing with Teacher ID: {teacher_id}")
+        
+        # Test 2: Default Status Check
+        print("\n📊 Testing Default Test Status...")
+        test_id = test_create_test_series_status(results, token, teacher_id)
+        
+        # Test 3: Teacher Visibility
+        print("\n👁️ Testing Teacher Test Visibility...")
+        test_teacher_can_see_own_tests(results, token, teacher_id)
+        
+        # Test 4: Manual Draft Creation
+        print("\n📝 Testing Manual Draft Creation...")
+        draft_test_id = test_create_draft_test_manually(results, token, teacher_id)
+        
+        # Test 5: URL Parameter Testing
+        print("\n🔍 Testing URL Parameters...")
+        test_teacher_filtering_parameters(results, token, teacher_id)
+        
+        # Test 6: Rapid Creation Testing
+        print("\n⚡ Testing Rapid Test Creation...")
+        test_rapid_test_creation_visibility(results, token, teacher_id)
+    
+    # Test 7: Specific User Scenario
+    print("\n🎯 Testing Specific User Scenario...")
+    test_specific_user_scenario(results)
+    
+    # Final Summary
+    print("\n" + "=" * 60)
+    success_rate = results.summary()
+    
+    if success_rate >= 90:
+        print("🎉 BACKEND STATUS: EXCELLENT - All major functionality working")
+    elif success_rate >= 75:
+        print("✅ BACKEND STATUS: GOOD - Minor issues detected")
+    else:
+        print("❌ BACKEND STATUS: ISSUES DETECTED - Requires attention")
+    
+    return results
+
+if __name__ == "__main__":
+    main()
                 self.log("Teacher already exists, attempting login...")
                 return self.test_teacher_login()
             else:
