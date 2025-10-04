@@ -616,9 +616,13 @@ async function handler(request) {
           attempt.testSeriesTitle = testSeries?.title || 'Unknown';
           
           if (user.role !== 'student') {
+            const projection = user.role === 'teacher' 
+              ? { name: 1 } // Teachers only see student names
+              : { name: 1, email: 1, phone: 1 }; // Admins see full details
+            
             const student = await db.collection('users').findOne(
               { userId: attempt.studentId },
-              { projection: { name: 1, email: 1, phone: 1 } }
+              { projection }
             );
             attempt.studentDetails = student;
           }
