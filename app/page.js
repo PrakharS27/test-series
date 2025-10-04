@@ -1741,7 +1741,8 @@ export default function TestSeriesApp() {
                   <div>
                     <Label>Student</Label>
                     <p className="font-medium">{attempt.studentName}</p>
-                    {attempt.studentDetails && (
+                    {/* Teachers see only names, Admins see full details */}
+                    {attempt.studentDetails && user?.role === 'admin' && (
                       <div className="text-sm text-gray-600 mt-1">
                         <div>{attempt.studentDetails.email}</div>
                         <div>{attempt.studentDetails.phone}</div>
