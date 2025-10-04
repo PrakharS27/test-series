@@ -8,7 +8,7 @@ import json
 import uuid
 import io
 
-BASE_URL = "https://teacher-test-upload.preview.emergentagent.com/api"
+BASE_URL = "https://test-display-issue.preview.emergentagent.com/api"
 ADMIN_CREDENTIALS = {"username": "admin", "password": "admin123"}
 
 def make_request(method, endpoint, data=None, token=None, files=None):
