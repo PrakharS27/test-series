@@ -626,7 +626,7 @@ export default function TestSeriesApp() {
             </CardHeader>
             <CardContent className="space-y-4">
               <RadioGroup 
-                value={answers[question?.questionId]?.toString()} 
+                value={answers[question?.questionId]?.toString() || ''} 
                 onValueChange={(value) => {
                   const answerIndex = parseInt(value);
                   setAnswers(prev => ({ ...prev, [question?.questionId]: answerIndex }));
@@ -634,9 +634,15 @@ export default function TestSeriesApp() {
                 }}
               >
                 {question?.options.map((option, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <RadioGroupItem value={index.toString()} id={`option-${index}`} />
-                    <Label htmlFor={`option-${index}`} className="text-sm cursor-pointer">
+                  <div key={`${question?.questionId}-${index}`} className="flex items-center space-x-2">
+                    <RadioGroupItem 
+                      value={index.toString()} 
+                      id={`question-${question?.questionId}-option-${index}`} 
+                    />
+                    <Label 
+                      htmlFor={`question-${question?.questionId}-option-${index}`} 
+                      className="text-sm cursor-pointer"
+                    >
                       {option}
                     </Label>
                   </div>
