@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const API_BASE = 'https://testprep-hub-6.preview.emergentagent.com/api';
+const API_BASE = 'https://teacher-test-upload.preview.emergentagent.com/api';
 
 async function testStudentFlow() {
   try {
