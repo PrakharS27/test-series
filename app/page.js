@@ -1424,7 +1424,8 @@ export default function TestSeriesApp() {
                       <span className="text-gray-600">({test.totalAttempts || 0} students)</span>
                     </div>
                   </div>
-                  {(user?.role === 'teacher' || user?.role === 'admin') && test.createdBy === user?.userId && (
+                  {(user?.role === 'teacher' || user?.role === 'admin') && 
+                   (user?.role === 'admin' || test.createdBy === user?.userId) && (
                     <div className="flex space-x-1">
                       <Button size="sm" variant="ghost" onClick={() => previewTestSeries(test.testSeriesId)}>
                         <Play className="h-4 w-4 text-blue-500" />
