@@ -82,13 +82,8 @@ export default function TestSeriesApp() {
         localStorage.setItem('token', data.token);
         setUser(data.user);
         setIsAuthenticated(true);
+        setAuthStep('dashboard');
         toast.success('Registration successful!');
-        
-        // If student, show category selection
-        if (data.user.role === 'student') {
-          setAuthStep('category-select');
-          return;
-        }
       } else {
         toast.error(data.error || 'Registration failed');
       }
