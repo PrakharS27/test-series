@@ -287,6 +287,31 @@ export default function TestSeriesApp() {
     }
   };
 
+  const toggleTestStatus = async (testSeriesId, currentStatus) => {
+    try {
+      const token = localStorage.getItem('token');
+      const newStatus = currentStatus === 'draft' ? 'published' : 'draft';
+      
+      const response = await fetch(`${API_BASE}/test-series/${testSeriesId}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (response.ok) {
+        toast.success(`Test ${newStatus === 'draft' ? 'unpublished' : 'published'} successfully!`);
+        loadTestSeries();
+      } else {
+        toast.error('Failed to update test status');
+      }
+    } catch (error) {
+      toast.error('Network error. Please try again.');
+    }
+  };
+
   // Test taking functions
   const startTest = async (testSeriesId) => {
     try {
