@@ -602,12 +602,7 @@ export default function TestSeriesApp() {
                     <SelectContent>
                       {teachers.map(teacher => (
                         <SelectItem key={teacher.userId} value={teacher.userId}>
-                          <div className="flex items-center space-x-2">
-                            {teacher.photo && (
-                              <img src={teacher.photo} alt={teacher.name} className="w-6 h-6 rounded-full" />
-                            )}
-                            <span>{teacher.name}</span>
-                          </div>
+                          {teacher.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
