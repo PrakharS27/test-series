@@ -185,7 +185,15 @@ export default function TestSeriesApp() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      console.log('Loaded test series:', data.length, 'tests for user:', user?.username);
+      console.log('Loaded test series:', data.length, 'tests for user:', user?.username, user?.role);
+      
+      // Log status breakdown for debugging
+      const statusCount = data.reduce((acc, test) => {
+        acc[test.status] = (acc[test.status] || 0) + 1;
+        return acc;
+      }, {});
+      console.log('Test status breakdown:', statusCount);
+      
       setTestSeries(data);
     } catch (error) {
       console.error('Error loading test series:', error);
