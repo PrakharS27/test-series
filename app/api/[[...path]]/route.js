@@ -275,15 +275,10 @@ async function handler(request) {
     if (path[0] === 'teachers' && method === 'GET') {
       const { category } = Object.fromEntries(url.searchParams);
       
-      let query = { role: 'teacher' };
-      if (category) {
-        // Find teachers who have test series in this category
-        const testSeries = await db.collection('testSeries').distinct('createdBy', { category });
-        query.userId = { $in: testSeries };
-      }
-
+      // Always return all teachers - students can choose any teacher
+      // Category filtering will be applied when viewing test series
       const teachers = await db.collection('users').find(
-        query,
+        { role: 'teacher' },
         { projection: { password: 0, resetToken: 0, resetTokenExpiry: 0 } }
       ).toArray();
 
