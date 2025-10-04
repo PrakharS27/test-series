@@ -1455,6 +1455,14 @@ export default function TestSeriesApp() {
                       <Button size="sm" variant="ghost" onClick={() => previewTestSeries(test.testSeriesId)}>
                         <Play className="h-4 w-4 text-blue-500" />
                       </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => toggleTestStatus(test.testSeriesId, test.status)}
+                        title={test.status === 'draft' ? 'Publish test' : 'Unpublish test'}
+                      >
+                        <CheckCircle className={`h-4 w-4 ${test.status === 'draft' ? 'text-gray-400' : 'text-green-500'}`} />
+                      </Button>
                       <Button size="sm" variant="ghost">
                         <Edit className="h-4 w-4 text-gray-500" />
                       </Button>
