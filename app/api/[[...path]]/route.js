@@ -758,10 +758,24 @@ async function handler(request) {
           // Get the latest answers from the attempt
           const currentAttempt = await db.collection('testAttempts').findOne({ attemptId });
           
+          // Create detailed results with solutions
+          const detailedResults = [];
           for (const question of testSeries.questions) {
-            if (currentAttempt.answers[question.questionId] === question.correctAnswer) {
+            const studentAnswer = currentAttempt.answers[question.questionId];
+            const isCorrect = studentAnswer === question.correctAnswer;
+            if (isCorrect) {
               score++;
             }
+            
+            detailedResults.push({
+              questionId: question.questionId,
+              question: question.question,
+              options: question.options,
+              studentAnswer: studentAnswer,
+              correctAnswer: question.correctAnswer,
+              isCorrect: isCorrect,
+              explanation: question.explanation || 'No explanation provided'
+            });
           }
           
           await db.collection('testAttempts').updateOne(
@@ -770,6 +784,7 @@ async function handler(request) {
               $set: { 
                 status: 'completed', 
                 score,
+                detailedResults,
                 completedAt: new Date()
               } 
             }
@@ -779,6 +794,7 @@ async function handler(request) {
             score,
             totalQuestions: testSeries.questions.length,
             percentage: Math.round((score / testSeries.questions.length) * 100),
+            detailedResults,
             message: 'Test completed successfully'
           }, { headers: corsHeaders });
         }
