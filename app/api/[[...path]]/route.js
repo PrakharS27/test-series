@@ -278,7 +278,7 @@ async function handler(request) {
       let query = { role: 'teacher' };
       if (category) {
         // Find teachers who have test series in this category
-        const testSeries = await db.collection('testSeries').find({ category }).distinct('createdBy');
+        const testSeries = await db.collection('testSeries').distinct('createdBy', { category });
         query.userId = { $in: testSeries };
       }
 
