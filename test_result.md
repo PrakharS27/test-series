@@ -114,6 +114,16 @@ user_problem_statement: |
   Roles: Admin (full control), Teacher (own content), Student (take tests)
   Test Experience: One question per page, review/change answers, auto-submit on time expire, show results immediately
 
+  ENHANCEMENT REQUIREMENTS:
+  - Remove category and teacher selection flow for students - show all tests organized by category in header
+  - Udemy-style test cards with teacher photos, ratings, and metadata
+  - Category navigation showing teachers who offer tests in that category
+  - Edit/delete options for teachers same as admin
+  - Live preview option for teachers before test
+  - Fix auto-selection issue in test questions
+  - Detailed solutions after test completion showing student choice vs correct answer
+  - Teachers should only see student names in results section
+
 backend:
   - task: "User Authentication System with JWT"
     implemented: true
