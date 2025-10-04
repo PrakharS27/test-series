@@ -689,8 +689,91 @@ export default function TestSeriesApp() {
     );
   }
 
-  // Test Results
+  // Test Results with Detailed Solutions
   if (testCompleted && testResult) {
+    if (showDetailedResults && detailedResults) {
+      return (
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white shadow-sm border-b">
+            <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+              <div>
+                <h1 className="text-xl font-bold">Detailed Results & Solutions</h1>
+                <p className="text-sm text-gray-600">
+                  Score: {testResult.score}/{testResult.totalQuestions} ({testResult.percentage}%)
+                </p>
+              </div>
+              <Button 
+                variant="outline"
+                onClick={() => setShowDetailedResults(false)}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" /> Back to Summary
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-w-4xl mx-auto p-6 space-y-6">
+            {detailedResults.map((result, index) => (
+              <Card key={result.questionId} className={`${result.isCorrect ? 'border-green-200' : 'border-red-200'}`}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <CardTitle className="text-lg">
+                      Question {index + 1}
+                      <Badge 
+                        variant={result.isCorrect ? "default" : "destructive"} 
+                        className="ml-2"
+                      >
+                        {result.isCorrect ? 'Correct' : 'Incorrect'}
+                      </Badge>
+                    </CardTitle>
+                  </div>
+                  <CardDescription>{result.question}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-2">
+                    {result.options.map((option, optionIndex) => (
+                      <div 
+                        key={optionIndex} 
+                        className={`p-3 rounded border ${
+                          optionIndex === result.correctAnswer 
+                            ? 'bg-green-50 border-green-200' 
+                            : optionIndex === result.studentAnswer && !result.isCorrect
+                            ? 'bg-red-50 border-red-200'
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{option}</span>
+                          <div className="flex space-x-2">
+                            {optionIndex === result.correctAnswer && (
+                              <Badge variant="default" className="bg-green-600">
+                                Correct Answer
+                              </Badge>
+                            )}
+                            {optionIndex === result.studentAnswer && (
+                              <Badge variant={result.isCorrect ? "default" : "destructive"}>
+                                Your Answer
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {result.explanation && (
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                      <h4 className="font-medium text-blue-900 mb-2">Explanation:</h4>
+                      <p className="text-blue-800 text-sm">{result.explanation}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -704,21 +787,34 @@ export default function TestSeriesApp() {
               <div className="text-lg text-gray-600">out of {testResult.totalQuestions}</div>
               <div className="text-2xl font-semibold text-green-600">{testResult.percentage}%</div>
             </div>
-            <Button 
-              onClick={() => {
-                setCurrentTest(null);
-                setCurrentAttempt(null);
-                setTestCompleted(false);
-                setTestResult(null);
-                setAnswers({});
-                setCurrentQuestion(0);
-                loadTestSeries();
-                loadAttempts();
-              }}
-              className="w-full"
-            >
-              Back to Dashboard
-            </Button>
+            <div className="space-y-3">
+              {detailedResults && (
+                <Button 
+                  onClick={() => setShowDetailedResults(true)}
+                  className="w-full"
+                  variant="outline"
+                >
+                  View Detailed Solutions
+                </Button>
+              )}
+              <Button 
+                onClick={() => {
+                  setCurrentTest(null);
+                  setCurrentAttempt(null);
+                  setTestCompleted(false);
+                  setTestResult(null);
+                  setDetailedResults(null);
+                  setShowDetailedResults(false);
+                  setAnswers({});
+                  setCurrentQuestion(0);
+                  loadTestSeries();
+                  loadAttempts();
+                }}
+                className="w-full"
+              >
+                Back to Dashboard
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
