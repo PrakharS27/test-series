@@ -200,6 +200,51 @@ backend:
         agent: "testing"
         comment: "TESTED: Analytics working correctly - teachers get their test series analytics (1 test series, 1 attempt), admins get system-wide analytics (9 users, 3 test series), students properly restricted with 403 error. Fixed student access restriction."
 
+  - task: "Admin Edit/Delete Permissions for Teacher Tests"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "BUG FIX: Updated permissions so admins can edit/delete ANY test series, not just their own. Removed createdBy restriction for admin role in PUT and DELETE operations."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Admin edit/delete permissions working correctly. Admin can view teacher-created tests, successfully edit teacher tests (title/description updates applied), and delete teacher-created tests. Verification confirmed changes persist in database and deleted tests are removed completely."
+
+  - task: "Teacher Test Visibility After Creation"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "BUG FIX: Changed default test status from 'draft' to 'published' so newly created tests appear immediately in teacher's list. Updated backend logic for teachers to see all their tests including drafts by default."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Teacher test visibility working correctly. New test series created with 'published' status by default, teacher can see newly created test immediately in their list without any delays or additional steps required."
+
+  - task: "Test Status Publish/Unpublish Functionality"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW FEATURE: Added publish/unpublish toggle functionality with status badges. Teachers and admins can change test status between 'published' and 'draft' via PUT endpoint."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Publish/unpublish functionality working correctly. Successfully changed test status from 'published' to 'draft' and back to 'published'. Status updates persist correctly in database and are reflected in API responses."
+
   - task: "Database Setup with Default Admin"
     implemented: true
     working: true
