@@ -528,7 +528,7 @@ export default function TestSeriesApp() {
 
   // Load data when authenticated
   useEffect(() => {
-    if (isAuthenticated && authStep === 'login') {
+    if (isAuthenticated && (authStep === 'dashboard' || authStep === 'login')) {
       loadCategories();
       loadTestSeries();
       loadAttempts();
