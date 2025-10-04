@@ -81,7 +81,10 @@ def debug_tests():
             }
             response = make_request("POST", "auth/reset-password", invalid_reset_data)
             print(f"Status: {response.status_code}")
-            print(f"Response: {response.json() if response else 'No response'}")
+            try:
+                print(f"Response: {response.json()}")
+            except:
+                print(f"Response text: {response.text if response else 'No response'}")
             
             # Test 2: Teacher trying to create category
             print("\n=== Testing Teacher Category Creation ===")
@@ -91,7 +94,10 @@ def debug_tests():
             }
             response = make_request("POST", "categories", new_category, token=teacher_token)
             print(f"Status: {response.status_code}")
-            print(f"Response: {response.json() if response else 'No response'}")
+            try:
+                print(f"Response: {response.json()}")
+            except:
+                print(f"Response text: {response.text if response else 'No response'}")
             
             # Test 3: Invalid file upload
             print("\n=== Testing Invalid File Upload ===")
@@ -100,7 +106,10 @@ def debug_tests():
             }
             response = make_request("POST", "upload/photo", data={}, token=teacher_token, files=files)
             print(f"Status: {response.status_code}")
-            print(f"Response: {response.json() if response else 'No response'}")
+            try:
+                print(f"Response: {response.json()}")
+            except:
+                print(f"Response text: {response.text if response else 'No response'}")
             
             # Test 4: Teachers by category
             print("\n=== Testing Teachers by Category ===")
