@@ -96,7 +96,9 @@ class NewFeaturesAPITester:
             print("✅ Admin token obtained successfully")
             return True
         else:
-            print("❌ Failed to obtain admin token")
+            print(f"❌ Failed to obtain admin token. Status: {response.status_code if response else 'No response'}")
+            if response:
+                print(f"Response: {response.text}")
             return False
     
     def test_enhanced_authentication(self):
