@@ -995,7 +995,7 @@ export default function TestSeriesApp() {
                 
                 <div className="space-y-4">
                   {attempts.filter(a => a.status === 'completed').map((attempt) => {
-                    const testSeries = testSeries.find(ts => ts.testSeriesId === attempt.testSeriesId);
+                    const testSeriesItem = testSeries.find(ts => ts.testSeriesId === attempt.testSeriesId);
                     const percentage = Math.round((attempt.score / attempt.totalQuestions) * 100);
                     
                     return (
