@@ -296,11 +296,9 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Student interface category navigation" # ✅ TESTED - Working
-    - "Udemy-style test cards" # ✅ TESTED - Working  
-    - "Teacher preview functionality" # ✅ TESTED - Working
-    - "Detailed results with solutions" # ✅ TESTED - Working
-    - "Teacher edit/delete permissions" # ✅ TESTED - Working
+    - "Admin edit/delete options for teacher tests" # NEW FIX - Needs Testing
+    - "Teacher test visibility after creation" # NEW FIX - Needs Testing  
+    - "Test status publish/unpublish functionality" # NEW FEATURE - Needs Testing
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
