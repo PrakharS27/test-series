@@ -119,13 +119,32 @@ export default function TestSeriesApp() {
   };
 
   // Load teachers by category
-  const loadTeachers = async (category) => {
+  const loadTeachersByCategory = async (category) => {
     try {
-      const response = await fetch(`${API_BASE}/teachers?category=${category}`);
-      const data = await response.json();
-      setTeachers(data);
+      const response = await fetch(`${API_BASE}/categories?withTeachers=true`);
+      const categoriesData = await response.json();
+      const categoryData = categoriesData.find(cat => cat.name === category);
+      setCategoryTeachers(categoryData?.teachers || []);
+      setShowTeachersList(true);
     } catch (error) {
-      console.error('Error loading teachers:', error);
+      console.error('Error loading teachers by category:', error);
+    }
+  };
+
+  // Preview test for teachers
+  const previewTestSeries = async (testSeriesId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}/test-series?preview=true`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const tests = await response.json();
+      const test = tests.find(t => t.testSeriesId === testSeriesId);
+      setPreviewTest(test);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error loading preview:', error);
+      toast.error('Failed to load preview');
     }
   };
 
