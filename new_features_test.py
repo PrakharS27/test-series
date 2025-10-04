@@ -387,13 +387,22 @@ class NewFeaturesAPITester:
         
         response = self.make_request("POST", "upload/photo", data={}, token=self.teacher_token, files=files)
         if response and response.status_code == 400:
-            error_msg = response.json().get("error", "")
-            if "invalid file type" in error_msg.lower():
-                self.log_result("file_upload", "Photo Upload (Invalid Type)", True, 
-                              "Invalid file type properly rejected")
-            else:
-                self.log_result("file_upload", "Photo Upload (Invalid Type)", False, 
-                              f"Wrong error message: {error_msg}")
+            try:
+                error_msg = response.json().get("error", "")
+                if "invalid file type" in error_msg.lower():
+                    self.log_result("file_upload", "Photo Upload (Invalid Type)", True, 
+                                  "Invalid file type properly rejected")
+                else:
+                    self.log_result("file_upload", "Photo Upload (Invalid Type)", False, 
+                                  f"Wrong error message: {error_msg}")
+            except:
+                # If JSON parsing fails, check response text
+                if "invalid file type" in response.text.lower():
+                    self.log_result("file_upload", "Photo Upload (Invalid Type)", True, 
+                                  "Invalid file type properly rejected")
+                else:
+                    self.log_result("file_upload", "Photo Upload (Invalid Type)", False, 
+                                  f"Unexpected response: {response.text}")
         else:
             self.log_result("file_upload", "Photo Upload (Invalid Type)", False, 
                           "Invalid file type should be rejected with 400")
