@@ -257,13 +257,18 @@ export default function TestSeriesApp() {
       });
       
       if (response.ok) {
+        const newTestSeries = await response.json();
+        console.log('Test series created:', newTestSeries);
         toast.success('Test series created successfully!');
-        loadTestSeries();
+        // Reload the test series list to ensure the new one appears
+        await loadTestSeries();
+        console.log('Test series list reloaded');
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to create test series');
       }
     } catch (error) {
+      console.error('Error creating test series:', error);
       toast.error('Network error. Please try again.');
     }
   };
