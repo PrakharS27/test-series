@@ -1,53 +1,97 @@
 #!/usr/bin/env python3
 """
-Backend Test for Teacher Test Series Visibility Issue
-Tests the specific issue: Teacher creates test but can't see it in their list
+Backend Test Suite for Teacher Test Series Visibility Issue
+Testing specific user report about draft status and visibility problems
 """
 
 import requests
 import json
 import time
-import os
 from datetime import datetime
 
-# Get base URL from environment
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
-API_BASE = f"{BASE_URL}/api"
+# Configuration
+BASE_URL = "http://localhost:3000/api"
+HEADERS = {"Content-Type": "application/json"}
 
-class TestTeacherVisibility:
+class TestResults:
     def __init__(self):
-        self.teacher_token = None
-        self.teacher_user_id = None
-        self.created_test_id = None
+        self.passed = 0
+        self.failed = 0
+        self.results = []
+    
+    def add_result(self, test_name, passed, message):
+        self.results.append({
+            'test': test_name,
+            'status': 'PASS' if passed else 'FAIL',
+            'message': message,
+            'timestamp': datetime.now().isoformat()
+        })
+        if passed:
+            self.passed += 1
+        else:
+            self.failed += 1
+        print(f"{'✅' if passed else '❌'} {test_name}: {message}")
+    
+    def summary(self):
+        total = self.passed + self.failed
+        success_rate = (self.passed / total * 100) if total > 0 else 0
+        print(f"\n📊 TEST SUMMARY:")
+        print(f"Total Tests: {total}")
+        print(f"Passed: {self.passed}")
+        print(f"Failed: {self.failed}")
+        print(f"Success Rate: {success_rate:.1f}%")
+        return success_rate
+
+def test_teacher_login(results):
+    """Test login with specific teacher mentioned by user"""
+    try:
+        # Test with the specific teacher userId mentioned: "97717e61-b920-4faa-9d2a-7a70961474f1"
+        # First try to find this user or create a test teacher
         
-    def log(self, message, status="INFO"):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"[{timestamp}] {status}: {message}")
+        # Try login with teacher1 (from previous tests)
+        response = requests.post(f"{BASE_URL}/auth/login", 
+                               json={"username": "teacher1", "password": "teacher123"}, 
+                               headers=HEADERS)
         
-    def test_teacher_registration(self):
-        """Test teacher account creation with exact credentials from user request"""
-        try:
-            self.log("Testing teacher registration with exact credentials from user request...")
+        if response.status_code == 200:
+            data = response.json()
+            token = data.get('token')
+            user_info = data.get('user', {})
+            results.add_result("Teacher Login (teacher1)", True, 
+                             f"Login successful, userId: {user_info.get('userId')}, role: {user_info.get('role')}")
+            return token, user_info.get('userId')
+        else:
+            # Try to register teacher1 if not exists
+            reg_response = requests.post(f"{BASE_URL}/auth/register", 
+                                       json={
+                                           "username": "teacher1", 
+                                           "password": "teacher123",
+                                           "name": "Test Teacher 1",
+                                           "role": "teacher",
+                                           "email": "teacher1@test.com",
+                                           "phone": "1234567890"
+                                       }, 
+                                       headers=HEADERS)
             
-            # First try the exact credentials mentioned in the user request
-            teacher_data = {
-                "username": "teacher1",
-                "password": "teacher123", 
-                "name": "Test Teacher One",
-                "role": "teacher",
-                "email": "teacher1@example.com",
-                "phone": "1234567890"
-            }
+            if reg_response.status_code == 201:
+                # Now login
+                login_response = requests.post(f"{BASE_URL}/auth/login", 
+                                             json={"username": "teacher1", "password": "teacher123"}, 
+                                             headers=HEADERS)
+                if login_response.status_code == 200:
+                    data = login_response.json()
+                    token = data.get('token')
+                    user_info = data.get('user', {})
+                    results.add_result("Teacher Registration & Login", True, 
+                                     f"Created and logged in teacher, userId: {user_info.get('userId')}")
+                    return token, user_info.get('userId')
             
-            response = requests.post(f"{API_BASE}/auth/register", json=teacher_data)
+            results.add_result("Teacher Login", False, f"Failed to login or register teacher: {response.status_code}")
+            return None, None
             
-            if response.status_code == 200:
-                data = response.json()
-                self.teacher_token = data.get('token')
-                self.teacher_user_id = data.get('user', {}).get('userId')
-                self.log(f"✅ Teacher registration successful. UserID: {self.teacher_user_id}")
-                return True
-            elif response.status_code == 400 and "already exists" in response.json().get('error', ''):
+    except Exception as e:
+        results.add_result("Teacher Login", False, f"Exception: {str(e)}")
+        return None, None
                 self.log("Teacher already exists, attempting login...")
                 return self.test_teacher_login()
             else:
