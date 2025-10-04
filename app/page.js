@@ -553,7 +553,7 @@ export default function TestSeriesApp() {
 
   // Load data when authenticated
   useEffect(() => {
-    if (isAuthenticated && (authStep === 'dashboard' || authStep === 'login')) {
+    if (isAuthenticated && user?.role) {
       loadCategories();
       loadTestSeries();
       loadAttempts();
@@ -565,7 +565,7 @@ export default function TestSeriesApp() {
         loadUsers();
       }
     }
-  }, [isAuthenticated, user?.role, authStep]);
+  }, [isAuthenticated, user?.role]);
 
   if (loading) {
     return (
