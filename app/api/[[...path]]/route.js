@@ -235,8 +235,61 @@ async function handler(request) {
     // Categories routes
     if (path[0] === 'categories') {
       if (method === 'GET') {
-        const categories = await db.collection('categories').find({}).toArray();
-        return NextResponse.json(categories, { headers: corsHeaders });
+        const { withTeachers } = Object.fromEntries(url.searchParams);
+        
+        if (withTeachers === 'true') {
+          // Get categories with teachers who have tests in each category
+          const pipeline = [
+            {
+              $lookup: {
+                from: 'testSeries',
+                localField: 'name',
+                foreignField: 'category',
+                as: 'testSeries'
+              }
+            },
+            {
+              $unwind: {
+                path: '$testSeries',
+                preserveNullAndEmptyArrays: false
+              }
+            },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'testSeries.createdBy',
+                foreignField: 'userId',
+                as: 'teacher'
+              }
+            },
+            {
+              $unwind: '$teacher'
+            },
+            {
+              $group: {
+                _id: '$_id',
+                categoryId: { $first: '$categoryId' },
+                name: { $first: '$name' },
+                description: { $first: '$description' },
+                teachers: {
+                  $addToSet: {
+                    userId: '$teacher.userId',
+                    name: '$teacher.name',
+                    photo: '$teacher.photo',
+                    rating: '$teacher.rating',
+                    experience: '$teacher.experience'
+                  }
+                }
+              }
+            }
+          ];
+          
+          const categoriesWithTeachers = await db.collection('categories').aggregate(pipeline).toArray();
+          return NextResponse.json(categoriesWithTeachers, { headers: corsHeaders });
+        } else {
+          const categories = await db.collection('categories').find({}).toArray();
+          return NextResponse.json(categories, { headers: corsHeaders });
+        }
       }
 
       if (method === 'POST') {
