@@ -411,35 +411,57 @@ async function handler(request) {
 
       if (method === 'GET') {
         let query = {};
-        const { category, teacher, includeUnpublished } = Object.fromEntries(url.searchParams);
+        const { category, teacher, includeUnpublished, preview } = Object.fromEntries(url.searchParams);
         
         if (user?.role === 'student') {
-          // Students see only published test series from their selected teacher
+          // Students see ALL published test series from ALL teachers
           query.status = { $ne: 'draft' }; // Only published tests
-          if (user.selectedTeacher) {
-            query.createdBy = user.selectedTeacher;
-          }
-          // Allow filtering by URL parameters too
+          // Allow filtering by URL parameters
           if (category) query.category = category;
           if (teacher) query.createdBy = teacher;
         } else if (user?.role === 'teacher') {
-          query.createdBy = user.userId;
-          // Teachers can see their drafts unless specified otherwise
-          if (includeUnpublished !== 'true') {
-            query.status = { $ne: 'draft' };
+          if (preview === 'true') {
+            // Teacher preview - show specific test with full questions
+            query.createdBy = user.userId;
+          } else {
+            query.createdBy = user.userId;
+            // Teachers can see their drafts unless specified otherwise
+            if (includeUnpublished !== 'true') {
+              query.status = { $ne: 'draft' };
+            }
           }
         }
         // Admin sees all
 
         const testSeries = await db.collection('testSeries').find(query).toArray();
         
-        // Add creator names
+        // Add creator names and enhanced metadata
         for (const test of testSeries) {
           const creator = await db.collection('users').findOne(
             { userId: test.createdBy },
-            { projection: { name: 1 } }
+            { projection: { name: 1, photo: 1, rating: 1, experience: 1 } }
           );
           test.createdByName = creator?.name || 'Unknown';
+          test.createdByPhoto = creator?.photo || null;
+          test.createdByRating = creator?.rating || 0;
+          test.createdByExperience = creator?.experience || '';
+          
+          // Add attempt statistics for Udemy-style display
+          const attemptStats = await db.collection('testAttempts').aggregate([
+            { $match: { testSeriesId: test.testSeriesId, status: 'completed' } },
+            { 
+              $group: { 
+                _id: null, 
+                totalAttempts: { $sum: 1 },
+                averageScore: { $avg: '$score' },
+                averagePercentage: { $avg: { $multiply: [{ $divide: ['$score', '$totalQuestions'] }, 100] } }
+              } 
+            }
+          ]).toArray();
+          
+          test.totalAttempts = attemptStats[0]?.totalAttempts || 0;
+          test.averageScore = attemptStats[0]?.averageScore || 0;
+          test.averagePercentage = attemptStats[0]?.averagePercentage || 0;
         }
 
         return NextResponse.json(testSeries, { headers: corsHeaders });
